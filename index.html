@@ -90,10 +90,10 @@ select option{background:#1E2128;}
 */
 .sc-wrap{
   width:100%;
-  padding-top:56.25%; /* 9/16 = 56.25% */
   position:relative;
   overflow:hidden;
   background:#0a1628;
+  /* height 由 JS scaleInner 通过 paddingTop 设置 */
 }
 .sc-inner{
   position:absolute;
@@ -268,17 +268,14 @@ function renderAll(sls,th){
 }
 
 function scaleInner(wrap, inner){
-  // wrap 已在 DOM 里，offsetWidth 可靠
-  const W = wrap.offsetWidth;
-  if(W > 0){
-    inner.style.transform = `scale(${W/960})`;
-  } else {
-    // 极少数情况 offsetWidth=0，用 RAF 再试一次
-    requestAnimationFrame(()=>{
-      const W2 = wrap.offsetWidth || 640;
-      inner.style.transform = `scale(${W2/960})`;
-    });
-  }
+  // 用 preview 容器宽度计算，完全不依赖 wrap.offsetWidth
+  const pa = document.getElementById('pa');
+  const paW = pa.offsetWidth || pa.getBoundingClientRect().width || 800;
+  // preview padding 1.5rem*2=48px, scard max-width=660px
+  const W = Math.min(660, paW - 48);
+  inner.style.transform = 'scale(' + (W/960) + ')';
+  // 同时强制设置 wrap 高度，确保 padding-top:56.25% 撑开正确
+  wrap.style.paddingTop = Math.round(W * 9/16) + 'px';
 }
 
 // ── 构建单张幻灯片 HTML（960x540 坐标系）────────────────
