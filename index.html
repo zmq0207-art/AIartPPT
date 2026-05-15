@@ -564,8 +564,6 @@ function generate() {
 function renderPreview(slides, theme) {
   const area = document.getElementById('previewArea');
   document.getElementById('emptyState').style.display = 'none';
-
-  // 移除旧卡片
   area.querySelectorAll('.slide-card').forEach(el => el.remove());
 
   const typeLabel = { cover:'封面', agenda:'目录', content:'内容', end:'结尾' };
@@ -583,9 +581,19 @@ function renderPreview(slides, theme) {
       <div class="slide-canvas" id="canvas-${i}"></div>
     `;
     area.appendChild(card);
-    const _canvas = document.getElementById('canvas-' + i);
-    const _slide = slide, _theme = theme;
-    requestAnimationFrame(() => requestAnimationFrame(() => renderSlideCSS(_canvas, _slide, _theme)));
+
+    const canvas = document.getElementById('canvas-' + i);
+    // ResizeObserver 确保元素有真实宽度后再渲染，渲染一次即断开
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = entry.contentRect.width;
+        if (w > 0) {
+          ro.disconnect();
+          renderSlideCSS(canvas, slide, theme);
+        }
+      }
+    });
+    ro.observe(canvas);
   });
 }
 
