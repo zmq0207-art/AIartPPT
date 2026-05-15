@@ -308,7 +308,7 @@
   }
   .slide-canvas {
     aspect-ratio: 16 / 9;
-    position: relative;
+    width: 100%;
     overflow: hidden;
     font-family: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', sans-serif;
   }
@@ -581,83 +581,90 @@ function renderPreview(slides, theme) {
 }
 
 function renderSlideCSS(el, slide, theme) {
-  const W = el.offsetWidth || 680;
-  const H = Math.round(W * 9 / 16);
-  el.style.height = H + 'px';
-  const scale = W / 680;
-  // 基础字号（px），乘以scale后得到实际渲染尺寸
-  const fs = {
-    title:    Math.round(32 * scale),
-    subtitle: Math.round(16 * scale),
-    heading:  Math.round(20 * scale),
-    point:    Math.round(14 * scale),
-    num:      Math.round(12 * scale),
-  };
-  // 布局单位：同样以720为基准
-  const u = scale; // 1px in design = scale px on screen
+  // flex布局，内容自然流动，不用绝对定位计算坐标
+  el.style.overflow = 'hidden';
+  el.style.aspectRatio = '16/9';
+  el.style.height = '';
 
-  if (slide.type === 'cover' || slide.type === 'end') {
-    const c = slide.type === 'cover' ? theme.cover : theme.end;
+  const c_cover = theme.cover;
+  const c_content = theme.content;
+  const c_agenda = theme.agenda;
+  const c_end = theme.end;
+
+  if (slide.type === 'cover') {
     el.innerHTML = `
-      <div style="position:absolute;inset:0;background:#${c.bg}"></div>
-      ${slide.type === 'cover' && theme.cover.accentColor ? `
-      <div style="position:absolute;left:${43*u}px;top:${220*u}px;
-        width:${100*u}px;height:${5*u}px;
-        background:#${theme.cover.accentColor};border-radius:2px;"></div>` : ''}
-      <div style="position:absolute;left:${43*u}px;top:${95*u}px;right:${43*u}px;">
-        <div style="font-size:${fs.title}px;font-weight:700;color:#${c.titleColor};line-height:1.25;word-break:break-all;">${slide.title}</div>
-        ${slide.subtitle ? `<div style="margin-top:${18*u}px;font-size:${fs.subtitle}px;color:#${c.subtitleColor};line-height:1.5;word-break:break-all;">${slide.subtitle}</div>` : ''}
-      </div>
-    `;
+      <div style="width:100%;height:100%;background:#${c_cover.bg};
+        display:flex;flex-direction:column;justify-content:center;padding:8% 7%;">
+        <div style="width:60px;height:4px;background:#${c_cover.accentColor};border-radius:2px;margin-bottom:5%;"></div>
+        <div style="font-size:clamp(14px,2.8vw,28px);font-weight:700;color:#${c_cover.titleColor};
+          line-height:1.35;word-break:break-all;margin-bottom:3%;">${slide.title}</div>
+        ${slide.subtitle ? `<div style="font-size:clamp(11px,1.6vw,16px);color:#${c_cover.subtitleColor};
+          line-height:1.5;word-break:break-all;">${slide.subtitle}</div>` : ''}
+      </div>`;
+
+  } else if (slide.type === 'end') {
+    el.innerHTML = `
+      <div style="width:100%;height:100%;background:#${c_end.bg};
+        display:flex;flex-direction:column;justify-content:center;padding:8% 7%;">
+        <div style="font-size:clamp(16px,3.2vw,32px);font-weight:700;color:#${c_end.titleColor};
+          margin-bottom:4%;">${slide.title}</div>
+        ${slide.subtitle ? `<div style="font-size:clamp(11px,1.6vw,16px);color:#${c_end.subtitleColor};
+          word-break:break-all;">${slide.subtitle}</div>` : ''}
+      </div>`;
+
   } else if (slide.type === 'agenda') {
-    const c = theme.agenda;
     const items = (slide.points || []).slice(0, 6);
     el.innerHTML = `
-      <div style="position:absolute;inset:0;background:#${c.bg}"></div>
-      <div style="position:absolute;top:0;left:0;right:0;height:${68*u}px;background:#${c.headerBg};
-        display:flex;align-items:center;padding:0 ${36*u}px;">
-        <span style="font-size:${fs.heading}px;font-weight:700;color:#${c.titleColor}">${slide.title}</span>
-      </div>
-      ${items.map((pt, idx) => `
-        <div style="position:absolute;left:${36*u}px;top:${(84 + idx*52)*u}px;display:flex;align-items:center;gap:${8*u}px;">
-          <div style="width:${24*u}px;height:${24*u}px;background:#${c.itemBorder};border-radius:4px;flex-shrink:0;
-            display:flex;align-items:center;justify-content:center;color:#fff;font-size:${fs.num}px;font-weight:700;">${idx+1}</div>
-          <span style="font-size:${fs.point}px;color:#${c.itemText};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${580*u}px;">${pt}</span>
+      <div style="width:100%;height:100%;background:#${c_agenda.bg};
+        display:flex;flex-direction:column;overflow:hidden;">
+        <div style="background:#${c_agenda.headerBg};padding:2.5% 5%;flex-shrink:0;">
+          <span style="font-size:clamp(12px,2vw,20px);font-weight:700;color:#${c_agenda.titleColor};">${slide.title}</span>
         </div>
-      `).join('')}
-    `;
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;
+          padding:2% 5%;gap:2%;overflow:hidden;">
+          ${items.map((pt, i) => `
+            <div style="display:flex;align-items:center;gap:2%;min-height:0;">
+              <div style="width:clamp(16px,2.2vw,22px);height:clamp(16px,2.2vw,22px);background:#${c_agenda.itemBorder};
+                border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+                color:#fff;font-size:clamp(9px,1.2vw,13px);font-weight:700;">${i+1}</div>
+              <span style="font-size:clamp(10px,1.4vw,15px);color:#${c_agenda.itemText};
+                overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pt}</span>
+            </div>`).join('')}
+        </div>
+      </div>`;
+
   } else {
-    const c = theme.content;
     const points = slide.points || [];
-    const availH = H - 68 * u - 12 * u;
-    const itemH = Math.min(72 * u, availH / Math.max(points.length, 1));
-    const bSize = Math.round(16 * u);
     el.innerHTML = `
-      <div style="position:absolute;inset:0;background:#${c.bg}"></div>
-      <div style="position:absolute;top:0;left:0;right:0;height:${68*u}px;background:#${c.headerBg};
-        display:flex;align-items:center;padding:0 ${36*u}px;">
-        <span style="font-size:${fs.heading}px;font-weight:700;color:#${c.titleColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${slide.title}</span>
-      </div>
-      ${points.map((pt, idx) => {
-        const y = 68 * u + 10 * u + idx * itemH;
-        let bullet = '';
-        if (c.bulletShape === 'circle') {
-          bullet = `<div style="width:${bSize}px;height:${bSize}px;background:#${c.bulletColor};border-radius:50%;flex-shrink:0;margin-top:${(itemH-bSize)/2}px"></div>`;
-        } else if (c.bulletShape === 'line') {
-          bullet = `<div style="width:${4*u}px;height:${itemH*0.5}px;background:#${c.bulletColor};border-radius:2px;flex-shrink:0;margin-top:${itemH*0.25}px"></div>`;
-        } else {
-          bullet = `<div style="width:${bSize}px;height:${bSize}px;background:#${c.bulletColor};border-radius:3px;flex-shrink:0;margin-top:${(itemH-bSize)/2}px"></div>`;
-        }
-        return `
-          <div style="position:absolute;left:${36*u}px;top:${y}px;display:flex;align-items:flex-start;gap:${10*u}px;
-            width:${648*u}px;height:${itemH}px;overflow:hidden;">
-            ${bullet}
-            <span style="font-size:${fs.point}px;color:#${c.pointColor};line-height:${itemH}px;
-              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${pt}</span>
-          </div>
-        `;
-      }).join('')}
-    `;
+      <div style="width:100%;height:100%;background:#${c_content.bg};
+        display:flex;flex-direction:column;overflow:hidden;">
+        <div style="background:#${c_content.headerBg};padding:2.5% 5%;flex-shrink:0;">
+          <span style="font-size:clamp(12px,2vw,20px);font-weight:700;color:#${c_content.titleColor};
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;">${slide.title}</span>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;
+          padding:2% 5%;gap:2%;overflow:hidden;">
+          ${points.map(pt => {
+            let bullet = '';
+            if (c_content.bulletShape === 'circle') {
+              bullet = `<div style="width:clamp(8px,1.2vw,12px);height:clamp(8px,1.2vw,12px);
+                background:#${c_content.bulletColor};border-radius:50%;flex-shrink:0;"></div>`;
+            } else if (c_content.bulletShape === 'line') {
+              bullet = `<div style="width:3px;height:clamp(12px,1.8vw,18px);
+                background:#${c_content.bulletColor};border-radius:2px;flex-shrink:0;"></div>`;
+            } else {
+              bullet = `<div style="width:clamp(8px,1.2vw,12px);height:clamp(8px,1.2vw,12px);
+                background:#${c_content.bulletColor};border-radius:2px;flex-shrink:0;"></div>`;
+            }
+            return `
+            <div style="display:flex;align-items:center;gap:2%;min-height:0;">
+              ${bullet}
+              <span style="font-size:clamp(10px,1.4vw,15px);color:#${c_content.pointColor};
+                overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${pt}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
   }
 }
 
