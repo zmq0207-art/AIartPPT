@@ -574,16 +574,17 @@ function renderPreview(slides, theme) {
       <div class="slide-canvas" id="canvas-${i}"></div>
     `;
     area.appendChild(card);
-    renderSlideCSS(document.getElementById('canvas-' + i), slide, theme);
+    const _canvas = document.getElementById('canvas-' + i);
+    const _slide = slide, _theme = theme;
+    requestAnimationFrame(() => requestAnimationFrame(() => renderSlideCSS(_canvas, _slide, _theme)));
   });
 }
 
 function renderSlideCSS(el, slide, theme) {
-  const W = el.offsetWidth || 720;
-  const H = W * 9 / 16;
+  const W = el.offsetWidth || 680;
+  const H = Math.round(W * 9 / 16);
   el.style.height = H + 'px';
-  // 用固定基准缩放：以720px宽为基准，字号不随容器线性暴涨
-  const scale = W / 720;
+  const scale = W / 680;
   // 基础字号（px），乘以scale后得到实际渲染尺寸
   const fs = {
     title:    Math.round(32 * scale),
