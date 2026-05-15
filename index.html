@@ -75,11 +75,11 @@ select option{background:#1E2128;}
 .genbtn:hover{background:var(--ach);}
 
 /* Preview */
-.preview{grid-area:preview;overflow-y:auto;padding:1.5rem;display:flex;flex-direction:column;align-items:center;gap:14px;scrollbar-width:thin;}
-.empty{margin:auto;text-align:center;color:var(--di);}
+.preview{grid-area:preview;overflow-y:auto;padding:1.5rem;display:flex;flex-direction:column;align-items:stretch;gap:14px;scrollbar-width:thin;}
+.empty{margin:auto;align-self:center;text-align:center;color:var(--di);}
 .empty em{display:block;font-size:2.5rem;opacity:.25;margin-bottom:.75rem;font-style:normal;}
 .empty p{font-size:14px;}
-.scard{width:100%;max-width:660px;border:1px solid var(--bd);border-radius:12px;overflow:hidden;animation:fu .25s ease both;}
+.scard{width:100%;max-width:660px;margin:0 auto;border:1px solid var(--bd);border-radius:12px;overflow:hidden;animation:fu .25s ease both;}
 @keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .smeta{padding:7px 12px;background:var(--surf);border-bottom:1px solid var(--bd);font-size:11px;color:var(--di);display:flex;align-items:center;gap:7px;}
 
@@ -261,8 +261,8 @@ function renderAll(sls,th){
     pa.appendChild(card);
     pairs.push([wrap, inner]);
   });
-  // 所有卡全部插入 DOM 后，统一一次 rAF 批量缩放
-  requestAnimationFrame(() => pairs.forEach(([w,inn]) => scaleInner(w, inn)));
+  // 双重 rAF：第一帧完成布局计算，第二帧读取真实 offsetWidth 再缩放
+  requestAnimationFrame(() => requestAnimationFrame(() => pairs.forEach(([w,inn]) => scaleInner(w, inn))));
 }
 
 function scaleInner(wrap, inner){
