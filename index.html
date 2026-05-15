@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"
   onerror="this.onerror=null;this.src='https://unpkg.com/pptxgenjs@3.12.0/dist/pptxgen.bundle.js'"></script>
 <script src="parser.js"></script>
+<!-- parser.js 将被下方内联新版覆盖 -->
 <script src="themes.js"></script>
 <script src="renderer.js"></script>
 <style>
@@ -218,26 +219,61 @@ function rdfile(f){
 }
 
 // ── 生成 ───────────────────────────────────────────────
-function generate(){
+async function generate(){
   const raw=document.getElementById('rawText').value.trim();
   if(!raw){alert('请先输入内容');return;}
-  setprog(20);
+
   const ms=parseInt(document.getElementById('maxS').value)||12;
   const mp=parseInt(document.getElementById('maxP').value)||4;
-  G_slides=SlideParser.parse(raw,{maxSlides:ms,maxPointsPerSlide:mp});
-  setprog(60);
+  const btn=document.querySelector('.genbtn');
+  const sb=document.getElementById('sb');
+
+  // 显示解析结果区，状态改为"解析中"
+  sb.classList.add('on');
+  document.getElementById('s4').className='pill pb';
+  document.getElementById('s4').textContent='⏳ 解析中…';
+  document.getElementById('s1').textContent='—';
+  document.getElementById('s2').textContent='—';
+  document.getElementById('s3').textContent='—';
+  btn.disabled=true;
+  btn.textContent='⏳ AI 生成中…';
+  setprog(15);
+
   const st=StructureDetector.detect(TextCleaner.clean(raw));
   const sn={markdown:'Markdown',numbered:'数字编号',bullet:'Bullet列表',plain:'纯文本'};
   document.getElementById('s1').textContent=sn[st]||st;
+
+  try {
+    setprog(30);
+    G_slides = await SlideParser.parseWithAI(raw,{maxSlides:ms,maxPointsPerSlide:mp});
+    document.getElementById('s1').textContent=(sn[st]||st)+' · AI';
+  } catch(e) {
+    // API 报错，降级到本地规则解析并提示
+    G_slides=SlideParser.parse(raw,{maxSlides:ms,maxPointsPerSlide:mp});
+    document.getElementById('s1').textContent=(sn[st]||st)+' · 本地';
+    setStatus('⚠ AI失败: '+e.message.slice(0,30),'#f59e0b');
+  }
+
+  setprog(80);
   document.getElementById('s2').textContent=G_slides.filter(s=>s.type==='content').length+' 个';
   document.getElementById('s3').textContent=G_slides.length+' 张';
   document.getElementById('s4').className='pill pg';
   document.getElementById('s4').textContent='✓ 完成';
-  document.getElementById('sb').classList.add('on');
   renderAll(G_slides,ThemeEngine.get(G_theme));
   document.getElementById('dlBtn').disabled=false;
+  btn.disabled=false;
+  btn.textContent='✦ 解析并生成预览';
   setprog(100);setTimeout(()=>setprog(0),600);
 }
+
+function setStatus(msg, color){
+  const el=document.getElementById('s4');
+  el.className='pill';
+  el.style.background='rgba(0,0,0,0.2)';
+  el.style.color=color||'var(--mu)';
+  el.textContent=msg;
+}
+
 
 // ── 渲染所有幻灯片 ─────────────────────────────────────
 function renderAll(sls,th){
