@@ -8,7 +8,6 @@
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"
   onerror="this.onerror=null;this.src='https://unpkg.com/pptxgenjs@3.12.0/dist/pptxgen.bundle.js'"></script>
 <script src="parser.js"></script>
-<!-- parser.js 将被下方内联新版覆盖 -->
 <script src="themes.js"></script>
 <script src="renderer.js"></script>
 <style>
@@ -107,7 +106,7 @@ select option{background:#1E2128;}
   transform-origin:top left;
   font-family:'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif;
   /* scale 不影响布局，需要负 margin 消除多余空间 */
-  margin-right:-330px;
+  margin-right:-300px;
   margin-bottom:-169px;
 }
 
@@ -118,7 +117,7 @@ select option{background:#1E2128;}
 <div class="app">
   <nav>
     <div class="logo">Slide<span>Forge</span></div>
-    <span class="badge">无 AI API · 自研引擎</span>
+    <span class="badge">AI · DeepSeek</span>
     <div class="nav-r">
       <button class="btn" onclick="clearAll()">清空</button>
       <button class="btn p" id="dlBtn" disabled onclick="downloadPptx()">⬇ 下载 .pptx</button>
@@ -247,6 +246,8 @@ async function generate(){
     setprog(30);
     G_slides = await SlideParser.parseWithAI(raw,{maxSlides:ms,maxPointsPerSlide:mp});
     document.getElementById('s1').textContent=(sn[st]||st)+' · AI';
+    document.getElementById('s4').className='pill pg';
+    document.getElementById('s4').textContent='✓ 完成';
   } catch(e) {
     // API 报错，降级到本地规则解析并提示
     G_slides=SlideParser.parse(raw,{maxSlides:ms,maxPointsPerSlide:mp});
@@ -257,8 +258,12 @@ async function generate(){
   setprog(80);
   document.getElementById('s2').textContent=G_slides.filter(s=>s.type==='content').length+' 个';
   document.getElementById('s3').textContent=G_slides.length+' 张';
-  document.getElementById('s4').className='pill pg';
-  document.getElementById('s4').textContent='✓ 完成';
+  // 只在没有错误状态时才覆盖为"完成"（AI失败时保留黄色警告）
+  if(document.getElementById('s4').textContent==='⏳ 解析中…' ||
+     document.getElementById('s4').textContent==='⏳'){
+    document.getElementById('s4').className='pill pg';
+    document.getElementById('s4').textContent='✓ 完成';
+  }
   renderAll(G_slides,ThemeEngine.get(G_theme));
   document.getElementById('dlBtn').disabled=false;
   btn.disabled=false;
@@ -273,7 +278,6 @@ function setStatus(msg, color){
   el.style.color=color||'var(--mu)';
   el.textContent=msg;
 }
-
 
 // ── 渲染所有幻灯片 ─────────────────────────────────────
 function renderAll(sls,th){
