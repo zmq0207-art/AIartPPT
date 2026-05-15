@@ -307,10 +307,19 @@
     gap: 8px;
   }
   .slide-canvas {
-    aspect-ratio: 16 / 9;
     width: 100%;
+    aspect-ratio: 16 / 9;
     overflow: hidden;
+    position: relative;
     font-family: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', sans-serif;
+  }
+  .slide-inner {
+    position: absolute;
+    top: 0; left: 0;
+    width: 960px;
+    height: 540px;
+    transform-origin: top left;
+    overflow: hidden;
   }
 
   /* ── Slide render styles (CSS-driven preview) ── */
@@ -581,53 +590,61 @@ function renderPreview(slides, theme) {
 }
 
 function renderSlideCSS(el, slide, theme) {
-  // flex布局，内容自然流动，不用绝对定位计算坐标
-  el.style.overflow = 'hidden';
-  el.style.aspectRatio = '16/9';
-  el.style.height = '';
+  // 固定960x540内部坐标系，用scale缩放到容器宽度，严格16:9不变形
+  const W = el.offsetWidth || 680;
+  const scale = W / 960;
+  el.style.height = Math.round(W * 9 / 16) + 'px';
 
-  const c_cover = theme.cover;
-  const c_content = theme.content;
-  const c_agenda = theme.agenda;
-  const c_end = theme.end;
+  // 清空并创建内部画布
+  el.innerHTML = '<div class="slide-inner" id="inner-' + Math.random().toString(36).slice(2) + '"></div>';
+  const inner = el.firstChild;
+  inner.style.transform = `scale(${scale})`;
+
+  const cc = theme.cover;
+  const ct = theme.content;
+  const ca = theme.agenda;
+  const ce = theme.end;
 
   if (slide.type === 'cover') {
-    el.innerHTML = `
-      <div style="width:100%;height:100%;background:#${c_cover.bg};
-        display:flex;flex-direction:column;justify-content:center;padding:8% 7%;">
-        <div style="width:60px;height:4px;background:#${c_cover.accentColor};border-radius:2px;margin-bottom:5%;"></div>
-        <div style="font-size:clamp(14px,2.8vw,28px);font-weight:700;color:#${c_cover.titleColor};
-          line-height:1.35;word-break:break-all;margin-bottom:3%;">${slide.title}</div>
-        ${slide.subtitle ? `<div style="font-size:clamp(11px,1.6vw,16px);color:#${c_cover.subtitleColor};
-          line-height:1.5;word-break:break-all;">${slide.subtitle}</div>` : ''}
+    inner.innerHTML = `
+      <div style="width:960px;height:540px;background:#${cc.bg};box-sizing:border-box;
+        display:flex;flex-direction:column;justify-content:center;padding:60px 70px;">
+        <div style="width:80px;height:5px;background:#${cc.accentColor};border-radius:2px;margin-bottom:32px;"></div>
+        <div style="font-size:36px;font-weight:700;color:#${cc.titleColor};line-height:1.35;
+          word-break:break-all;margin-bottom:20px;max-height:200px;overflow:hidden;">${slide.title}</div>
+        ${slide.subtitle ? `
+        <div style="font-size:18px;color:#${cc.subtitleColor};line-height:1.6;
+          word-break:break-all;max-height:100px;overflow:hidden;">${slide.subtitle}</div>` : ''}
       </div>`;
 
   } else if (slide.type === 'end') {
-    el.innerHTML = `
-      <div style="width:100%;height:100%;background:#${c_end.bg};
-        display:flex;flex-direction:column;justify-content:center;padding:8% 7%;">
-        <div style="font-size:clamp(16px,3.2vw,32px);font-weight:700;color:#${c_end.titleColor};
-          margin-bottom:4%;">${slide.title}</div>
-        ${slide.subtitle ? `<div style="font-size:clamp(11px,1.6vw,16px);color:#${c_end.subtitleColor};
-          word-break:break-all;">${slide.subtitle}</div>` : ''}
+    inner.innerHTML = `
+      <div style="width:960px;height:540px;background:#${ce.bg};box-sizing:border-box;
+        display:flex;flex-direction:column;justify-content:center;padding:60px 70px;">
+        <div style="font-size:48px;font-weight:700;color:#${ce.titleColor};margin-bottom:24px;">${slide.title}</div>
+        ${slide.subtitle ? `
+        <div style="font-size:18px;color:#${ce.subtitleColor};word-break:break-all;
+          max-height:80px;overflow:hidden;">${slide.subtitle}</div>` : ''}
       </div>`;
 
   } else if (slide.type === 'agenda') {
     const items = (slide.points || []).slice(0, 6);
-    el.innerHTML = `
-      <div style="width:100%;height:100%;background:#${c_agenda.bg};
+    const itemH = Math.floor(380 / Math.max(items.length, 1));
+    inner.innerHTML = `
+      <div style="width:960px;height:540px;background:#${ca.bg};box-sizing:border-box;
         display:flex;flex-direction:column;overflow:hidden;">
-        <div style="background:#${c_agenda.headerBg};padding:2.5% 5%;flex-shrink:0;">
-          <span style="font-size:clamp(12px,2vw,20px);font-weight:700;color:#${c_agenda.titleColor};">${slide.title}</span>
+        <div style="background:#${ca.headerBg};height:80px;flex-shrink:0;
+          display:flex;align-items:center;padding:0 48px;">
+          <span style="font-size:26px;font-weight:700;color:#${ca.titleColor};">${slide.title}</span>
         </div>
         <div style="flex:1;display:flex;flex-direction:column;justify-content:center;
-          padding:2% 5%;gap:2%;overflow:hidden;">
+          padding:16px 48px;gap:8px;overflow:hidden;">
           ${items.map((pt, i) => `
-            <div style="display:flex;align-items:center;gap:2%;min-height:0;">
-              <div style="width:clamp(16px,2.2vw,22px);height:clamp(16px,2.2vw,22px);background:#${c_agenda.itemBorder};
-                border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
-                color:#fff;font-size:clamp(9px,1.2vw,13px);font-weight:700;">${i+1}</div>
-              <span style="font-size:clamp(10px,1.4vw,15px);color:#${c_agenda.itemText};
+            <div style="display:flex;align-items:center;gap:14px;height:${itemH}px;overflow:hidden;">
+              <div style="width:28px;height:28px;min-width:28px;background:#${ca.itemBorder};border-radius:4px;
+                display:flex;align-items:center;justify-content:center;
+                color:#fff;font-size:14px;font-weight:700;flex-shrink:0;">${i+1}</div>
+              <span style="font-size:18px;color:#${ca.itemText};
                 overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pt}</span>
             </div>`).join('')}
         </div>
@@ -635,31 +652,30 @@ function renderSlideCSS(el, slide, theme) {
 
   } else {
     const points = slide.points || [];
-    el.innerHTML = `
-      <div style="width:100%;height:100%;background:#${c_content.bg};
+    const itemH = Math.floor(380 / Math.max(points.length, 1));
+    inner.innerHTML = `
+      <div style="width:960px;height:540px;background:#${ct.bg};box-sizing:border-box;
         display:flex;flex-direction:column;overflow:hidden;">
-        <div style="background:#${c_content.headerBg};padding:2.5% 5%;flex-shrink:0;">
-          <span style="font-size:clamp(12px,2vw,20px);font-weight:700;color:#${c_content.titleColor};
-            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;">${slide.title}</span>
+        <div style="background:#${ct.headerBg};height:80px;flex-shrink:0;
+          display:flex;align-items:center;padding:0 48px;">
+          <span style="font-size:26px;font-weight:700;color:#${ct.titleColor};
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:860px;">${slide.title}</span>
         </div>
         <div style="flex:1;display:flex;flex-direction:column;justify-content:center;
-          padding:2% 5%;gap:2%;overflow:hidden;">
+          padding:16px 48px;gap:8px;overflow:hidden;">
           ${points.map(pt => {
             let bullet = '';
-            if (c_content.bulletShape === 'circle') {
-              bullet = `<div style="width:clamp(8px,1.2vw,12px);height:clamp(8px,1.2vw,12px);
-                background:#${c_content.bulletColor};border-radius:50%;flex-shrink:0;"></div>`;
-            } else if (c_content.bulletShape === 'line') {
-              bullet = `<div style="width:3px;height:clamp(12px,1.8vw,18px);
-                background:#${c_content.bulletColor};border-radius:2px;flex-shrink:0;"></div>`;
+            if (ct.bulletShape === 'circle') {
+              bullet = `<div style="width:12px;height:12px;min-width:12px;background:#${ct.bulletColor};border-radius:50%;flex-shrink:0;"></div>`;
+            } else if (ct.bulletShape === 'line') {
+              bullet = `<div style="width:4px;height:22px;min-width:4px;background:#${ct.bulletColor};border-radius:2px;flex-shrink:0;"></div>`;
             } else {
-              bullet = `<div style="width:clamp(8px,1.2vw,12px);height:clamp(8px,1.2vw,12px);
-                background:#${c_content.bulletColor};border-radius:2px;flex-shrink:0;"></div>`;
+              bullet = `<div style="width:12px;height:12px;min-width:12px;background:#${ct.bulletColor};border-radius:2px;flex-shrink:0;"></div>`;
             }
             return `
-            <div style="display:flex;align-items:center;gap:2%;min-height:0;">
+            <div style="display:flex;align-items:center;gap:14px;height:${itemH}px;overflow:hidden;">
               ${bullet}
-              <span style="font-size:clamp(10px,1.4vw,15px);color:#${c_content.pointColor};
+              <span style="font-size:18px;color:#${ct.pointColor};
                 overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${pt}</span>
             </div>`;
           }).join('')}
