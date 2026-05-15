@@ -85,11 +85,12 @@ select option{background:#1E2128;}
 
 /*
   16:9 比例保证：
-  .sc-wrap 高度由 JS 精确设置为 540*scale px
+  .sc-wrap 用 padding-top:56.25% 撑出高度（纯CSS，不依赖JS）
   .sc-inner 固定 960x540，通过 transform:scale 缩放到容器宽度
 */
 .sc-wrap{
   width:100%;
+  padding-top:56.25%;   /* 16:9 = 9/16 = 56.25% */
   position:relative;
   overflow:hidden;
   background:#0a1628;
@@ -266,11 +267,10 @@ function renderAll(sls,th){
 }
 
 function scaleInner(wrap, inner){
-  const W = wrap.offsetWidth || 660;
-  const scale = W / 960;
-  inner.style.transform = 'scale(' + scale + ')';
-  // 强制 wrap 高度 = 540 * scale，确保 16:9 精确
-  wrap.style.height = (540 * scale) + 'px';
+  // wrap 的宽度等于实际渲染宽，padding-top:56.25% 已保证高度 = 宽 * 9/16
+  // inner 是 960x540，scale = wrap宽 / 960 即可填满
+  const W = wrap.getBoundingClientRect().width || wrap.offsetWidth || 660;
+  inner.style.transform = 'scale(' + (W / 960) + ')';
 }
 
 // 窗口 resize 时重新计算所有幻灯片缩放（带防抖，避免频繁回流）
