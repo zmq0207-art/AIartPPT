@@ -90,10 +90,10 @@ select option{background:#1E2128;}
 */
 .sc-wrap{
   width:100%;
+  aspect-ratio:16/9;
   position:relative;
   overflow:hidden;
   background:#0a1628;
-  /* height 由 JS scaleInner 通过 paddingTop 设置 */
 }
 .sc-inner{
   position:absolute;
@@ -268,14 +268,10 @@ function renderAll(sls,th){
 }
 
 function scaleInner(wrap, inner){
-  // 用 preview 容器宽度计算，完全不依赖 wrap.offsetWidth
   const pa = document.getElementById('pa');
-  const paW = pa.offsetWidth || pa.getBoundingClientRect().width || 800;
-  // preview padding 1.5rem*2=48px, scard max-width=660px
+  const paW = pa.offsetWidth || 800;
   const W = Math.min(660, paW - 48);
   inner.style.transform = 'scale(' + (W/960) + ')';
-  // 同时强制设置 wrap 高度，确保 padding-top:56.25% 撑开正确
-  wrap.style.paddingTop = Math.round(W * 9/16) + 'px';
 }
 
 // ── 构建单张幻灯片 HTML（960x540 坐标系）────────────────
