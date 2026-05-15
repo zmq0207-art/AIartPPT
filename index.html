@@ -84,13 +84,12 @@ select option{background:#1E2128;}
 .smeta{padding:7px 12px;background:var(--surf);border-bottom:1px solid var(--bd);font-size:11px;color:var(--di);display:flex;align-items:center;gap:7px;}
 
 /*
-  16:9 비율 보장 핵심 방법:
-  .sc-wrap: padding-top:56.25% 로 높이 확보 (aspect-ratio 대신 - 브라우저 호환성 최대)
-  .sc-inner: position:absolute, 960x540 고정, transform으로 축소
+  16:9 比例保证：
+  .sc-wrap 高度由 JS 精确设置为 540*scale px
+  .sc-inner 固定 960x540，通过 transform:scale 缩放到容器宽度
 */
 .sc-wrap{
   width:100%;
-  aspect-ratio:16/9;
   position:relative;
   overflow:hidden;
   background:#0a1628;
@@ -241,18 +240,17 @@ function renderAll(sls,th){
   pa.querySelectorAll('.scard').forEach(e=>e.remove());
   const lb={cover:'封面',agenda:'目录',content:'内容',end:'结尾'};
 
+  const pairs = [];
   sls.forEach((sl,i)=>{
     const card=document.createElement('div');
     card.className='scard';
     card.style.animationDelay=(i*35)+'ms';
 
-    // 先用 innerHTML 设置 meta 栏
     const meta=document.createElement('div');
     meta.className='smeta';
     meta.innerHTML=`<span>第${i+1}张</span><span class="pill pb">${lb[sl.type]||sl.type}</span><span style="color:var(--di)">${sl.title||''}</span>`;
     card.appendChild(meta);
 
-    // 再用 appendChild 添加 wrap，避免 innerHTML 清空已有子节点
     const wrap=document.createElement('div');
     wrap.className='sc-wrap';
     const inner=document.createElement('div');
@@ -261,18 +259,31 @@ function renderAll(sls,th){
     wrap.appendChild(inner);
     card.appendChild(wrap);
     pa.appendChild(card);
-
-    // card 已在 DOM，wrap.offsetWidth 此时可靠
-    scaleInner(wrap, inner);
+    pairs.push([wrap, inner]);
   });
+  // 所有卡全部插入 DOM 后，统一一次 rAF 批量缩放
+  requestAnimationFrame(() => pairs.forEach(([w,inn]) => scaleInner(w, inn)));
 }
 
 function scaleInner(wrap, inner){
-  const pa = document.getElementById('pa');
-  const paW = pa.offsetWidth || 800;
-  const W = Math.min(660, paW - 48);
-  inner.style.transform = 'scale(' + (W/960) + ')';
+  const W = wrap.offsetWidth || 660;
+  const scale = W / 960;
+  inner.style.transform = 'scale(' + scale + ')';
+  // 强制 wrap 高度 = 540 * scale，确保 16:9 精确
+  wrap.style.height = (540 * scale) + 'px';
 }
+
+// 窗口 resize 时重新计算所有幻灯片缩放（带防抖，避免频繁回流）
+let _resizeTimer;
+window.addEventListener('resize', ()=>{
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(()=>{
+    document.querySelectorAll('.sc-wrap').forEach(wrap=>{
+      const inner = wrap.querySelector('.sc-inner');
+      if(inner) scaleInner(wrap, inner);
+    });
+  }, 100);
+});
 
 // ── 构建单张幻灯片 HTML（960x540 坐标系）────────────────
 function buildSlideHTML(sl, th){
