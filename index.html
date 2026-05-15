@@ -79,28 +79,28 @@ select option{background:#1E2128;}
 .empty{margin:auto;align-self:center;text-align:center;color:var(--di);}
 .empty em{display:block;font-size:2.5rem;opacity:.25;margin-bottom:.75rem;font-style:normal;}
 .empty p{font-size:14px;}
-.scard{width:100%;max-width:660px;margin:0 auto;border:1px solid var(--bd);border-radius:12px;overflow:hidden;animation:fu .25s ease both;}
+.scard{width:660px;margin:0 auto;border:1px solid var(--bd);border-radius:12px;overflow:hidden;animation:fu .25s ease both;}
 @keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .smeta{padding:7px 12px;background:var(--surf);border-bottom:1px solid var(--bd);font-size:11px;color:var(--di);display:flex;align-items:center;gap:7px;}
 
 /*
-  16:9 预览容器：
-  sc-wrap 用 aspect-ratio:16/9 自动保持比例，宽度由父容器决定
-  sc-inner 用 transform:scale 把 960x540 内容缩放填满 sc-wrap
+  16:9 预览：sc-wrap 固定宽660 高371，sc-inner 960x540 用 scale(660/960)=0.6875 缩放
+  660 / 960 = 0.6875，540 * 0.6875 = 371.25 ≈ 371px，精确16:9
 */
 .sc-wrap{
-  width:100%;
-  aspect-ratio:16/9;
+  width:660px;
+  height:371px;
   position:relative;
   overflow:hidden;
   background:#0a1628;
-  contain:strict;
+  flex-shrink:0;
 }
 .sc-inner{
   position:absolute;
   top:0; left:0;
   width:960px;
   height:540px;
+  transform:scale(0.6875);
   transform-origin:top left;
   font-family:'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif;
 }
@@ -241,7 +241,6 @@ function renderAll(sls,th){
   pa.querySelectorAll('.scard').forEach(e=>e.remove());
   const lb={cover:'封面',agenda:'目录',content:'内容',end:'结尾'};
 
-  const pairs = [];
   sls.forEach((sl,i)=>{
     const card=document.createElement('div');
     card.className='scard';
@@ -260,32 +259,10 @@ function renderAll(sls,th){
     wrap.appendChild(inner);
     card.appendChild(wrap);
     pa.appendChild(card);
-    pairs.push([wrap, inner]);
   });
 
-  // 全部插入 DOM 后，强制一次 reflow 再缩放，clientWidth 此时必然准确
-  pa.getBoundingClientRect(); // 触发 reflow
-  pairs.forEach(([w, inn]) => scaleSlide(w, inn));
+  // CSS 已经固定了 scale，不需要 JS 介入
 }
-
-function scaleSlide(wrap, inner){
-  // aspect-ratio:16/9 已保证容器高度正确
-  // 只需把 960px 宽的 inner 缩放到 wrap 的实际宽度
-  const W = wrap.clientWidth;
-  if(W > 0) inner.style.transform = 'scale(' + (W / 960) + ')';
-}
-
-// resize 时重新缩放（防抖 150ms）
-let _rt;
-window.addEventListener('resize', () => {
-  clearTimeout(_rt);
-  _rt = setTimeout(() => {
-    document.querySelectorAll('.sc-wrap').forEach(wrap => {
-      const inner = wrap.querySelector('.sc-inner');
-      if(inner) scaleSlide(wrap, inner);
-    });
-  }, 150);
-});
 
 // ── 构建单张幻灯片 HTML（960x540 坐标系）────────────────
 function buildSlideHTML(sl, th){
