@@ -84,17 +84,17 @@ select option{background:#1E2128;}
 .smeta{padding:7px 12px;background:var(--surf);border-bottom:1px solid var(--bd);font-size:11px;color:var(--di);display:flex;align-items:center;gap:7px;}
 
 /*
-  16:9 比例保证：
-  .sc-wrap 用 padding-top:56.25% 撑出高度（纯CSS，不依赖JS）
-  .sc-inner 固定 960x540，通过 transform:scale 缩放到容器宽度
+  16:9 预览容器：
+  sc-wrap 用 aspect-ratio:16/9 自动保持比例，宽度由父容器决定
+  sc-inner 用 transform:scale 把 960x540 内容缩放填满 sc-wrap
 */
 .sc-wrap{
   width:100%;
-  height:0;
-  padding-top:56.25%;   /* 16:9: padding% 相对于自身宽度，content高度=0全靠padding撑 */
+  aspect-ratio:16/9;
   position:relative;
   overflow:hidden;
   background:#0a1628;
+  contain:strict;
 }
 .sc-inner{
   position:absolute;
@@ -103,7 +103,6 @@ select option{background:#1E2128;}
   height:540px;
   transform-origin:top left;
   font-family:'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif;
-  overflow:hidden;
 }
 
 .prog{position:fixed;top:56px;left:0;height:2px;background:var(--ac);transition:width .3s;z-index:100;display:none;}
@@ -242,6 +241,7 @@ function renderAll(sls,th){
   pa.querySelectorAll('.scard').forEach(e=>e.remove());
   const lb={cover:'封面',agenda:'目录',content:'内容',end:'结尾'};
 
+  const pairs = [];
   sls.forEach((sl,i)=>{
     const card=document.createElement('div');
     card.className='scard';
@@ -260,31 +260,31 @@ function renderAll(sls,th){
     wrap.appendChild(inner);
     card.appendChild(wrap);
     pa.appendChild(card);
-
-    // ResizeObserver：wrap 尺寸确定后立即精确缩放，只触发一次后断开
-    const ro = new ResizeObserver(entries => {
-      const W = entries[0].contentRect.width;
-      if(W > 0){
-        inner.style.transform = 'scale(' + (W / 960) + ')';
-        ro.disconnect();
-      }
-    });
-    ro.observe(wrap);
+    pairs.push([wrap, inner]);
   });
+
+  // 全部插入 DOM 后，强制一次 reflow 再缩放，clientWidth 此时必然准确
+  pa.getBoundingClientRect(); // 触发 reflow
+  pairs.forEach(([w, inn]) => scaleSlide(w, inn));
 }
 
-// 窗口 resize 时重新计算所有幻灯片缩放（带防抖）
-let _resizeTimer;
-window.addEventListener('resize', ()=>{
-  clearTimeout(_resizeTimer);
-  _resizeTimer = setTimeout(()=>{
-    document.querySelectorAll('.sc-wrap').forEach(wrap=>{
+function scaleSlide(wrap, inner){
+  // aspect-ratio:16/9 已保证容器高度正确
+  // 只需把 960px 宽的 inner 缩放到 wrap 的实际宽度
+  const W = wrap.clientWidth;
+  if(W > 0) inner.style.transform = 'scale(' + (W / 960) + ')';
+}
+
+// resize 时重新缩放（防抖 150ms）
+let _rt;
+window.addEventListener('resize', () => {
+  clearTimeout(_rt);
+  _rt = setTimeout(() => {
+    document.querySelectorAll('.sc-wrap').forEach(wrap => {
       const inner = wrap.querySelector('.sc-inner');
-      if(!inner) return;
-      const W = wrap.getBoundingClientRect().width;
-      if(W > 0) inner.style.transform = 'scale(' + (W / 960) + ')';
+      if(inner) scaleSlide(wrap, inner);
     });
-  }, 100);
+  }, 150);
 });
 
 // ── 构建单张幻灯片 HTML（960x540 坐标系）────────────────
