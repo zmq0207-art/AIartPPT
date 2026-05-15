@@ -79,30 +79,35 @@ select option{background:#1E2128;}
 .empty{margin:auto;align-self:center;text-align:center;color:var(--di);}
 .empty em{display:block;font-size:2.5rem;opacity:.25;margin-bottom:.75rem;font-style:normal;}
 .empty p{font-size:14px;}
-.scard{width:660px;margin:0 auto;border:1px solid var(--bd);border-radius:12px;overflow:hidden;animation:fu .25s ease both;}
+.scard{width:660px;flex-shrink:0;margin:0 auto;border:1px solid var(--bd);border-radius:12px;overflow:hidden;animation:fu .25s ease both;}
 @keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .smeta{padding:7px 12px;background:var(--surf);border-bottom:1px solid var(--bd);font-size:11px;color:var(--di);display:flex;align-items:center;gap:7px;}
 
 /*
-  16:9 预览：sc-wrap 固定宽660 高371，sc-inner 960x540 用 scale(660/960)=0.6875 缩放
-  660 / 960 = 0.6875，540 * 0.6875 = 371.25 ≈ 371px，精确16:9
+  16:9 预览：
+  sc-wrap: 660x371px 固定容器，clip 内容
+  sc-inner: 960x540，scale(0.6875) 缩到 660x371，
+  用 margin-bottom 负值消除 scale 后残留的布局空间
 */
 .sc-wrap{
+  display:block;
   width:660px;
   height:371px;
-  position:relative;
   overflow:hidden;
   background:#0a1628;
   flex-shrink:0;
+  position:relative;
 }
 .sc-inner{
-  position:absolute;
-  top:0; left:0;
+  display:block;
   width:960px;
   height:540px;
   transform:scale(0.6875);
   transform-origin:top left;
   font-family:'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif;
+  /* scale 不影响布局，需要负 margin 消除多余空间 */
+  margin-right:-330px;
+  margin-bottom:-169px;
 }
 
 .prog{position:fixed;top:56px;left:0;height:2px;background:var(--ac);transition:width .3s;z-index:100;display:none;}
