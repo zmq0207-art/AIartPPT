@@ -142,7 +142,7 @@ ${trimmedText}`;
   return corsResponse({ slides: slides.slice(0, maxSlides) }, 200);
 }
 
-// ── /api/generate 处理（根据主题创作 PPT 内容）─────────
+// ── /api/generate 处理（SSE 流式推送，主题 → PPT）──────
 async function handleGenerate(request, env) {
   if (request.method === 'OPTIONS') {
     return corsResponse(null, 204);
@@ -200,6 +200,7 @@ JSON格式：
         model: 'deepseek-chat',
         max_tokens: 4096,
         temperature: 0.7,
+        stream: true,
         messages: [{ role: 'user', content: prompt }]
       })
     });
@@ -214,32 +215,84 @@ JSON格式：
     }, 502);
   }
 
-  const dsData = await dsResp.json();
-  const rawContent = dsData.choices?.[0]?.message?.content || '';
+  // ── SSE 流式透传给前端 ────────────────────────────────
+  const sseHeaders = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+  };
 
-  const match = rawContent.match(/```(?:json)?\s*([\s\S]*?)```/) ||
-                rawContent.match(/(\[[\s\S]*\])/);
-  const jsonStr = match ? match[1] : rawContent;
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const enc = new TextEncoder();
 
-  let slides;
-  try {
-    slides = JSON.parse(jsonStr.trim());
-  } catch {
-    return corsResponse({ error: 'AI返回格式解析失败，请重试' }, 502);
-  }
+  // 后台异步读取 DeepSeek 流，写入 SSE
+  (async () => {
+    let fullText = '';
+    const reader = dsResp.body.getReader();
+    const dec = new TextDecoder();
 
-  if (!Array.isArray(slides) || slides.length === 0) {
-    return corsResponse({ error: 'AI未返回有效幻灯片数据' }, 502);
-  }
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-  if (slides[0]?.type !== 'cover') {
-    slides.unshift({ type: 'cover', title: topic, subtitle: '' });
-  }
-  if (slides[slides.length - 1]?.type !== 'end') {
-    slides.push({ type: 'end', title: '谢谢', subtitle: '感谢聆听' });
-  }
+        const chunk = dec.decode(value, { stream: true });
+        // DeepSeek 返回多行 "data: {...}\n\n"
+        for (const line of chunk.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+          const payload = trimmed.slice(5).trim();
+          if (payload === '[DONE]') continue;
 
-  return corsResponse({ slides: slides.slice(0, maxSlides) }, 200);
+          let parsed;
+          try { parsed = JSON.parse(payload); } catch { continue; }
+
+          const token = parsed.choices?.[0]?.delta?.content || '';
+          if (!token) continue;
+
+          fullText += token;
+
+          // 把每个 token 作为 SSE event 推给前端
+          await writer.write(enc.encode(`data: ${JSON.stringify({ token })}\n\n`));
+        }
+      }
+
+      // 流结束后解析完整 JSON，推送 slides
+      const match = fullText.match(/```(?:json)?\s*([\s\S]*?)```/) ||
+                    fullText.match(/(\[[\s\S]*\])/);
+      const jsonStr = match ? match[1] : fullText;
+
+      let slides;
+      try {
+        slides = JSON.parse(jsonStr.trim());
+      } catch {
+        await writer.write(enc.encode(`data: ${JSON.stringify({ error: 'AI返回格式解析失败，请重试' })}\n\n`));
+        return; // finally 会关闭 writer
+      }
+
+      if (!Array.isArray(slides) || slides.length === 0) {
+        await writer.write(enc.encode(`data: ${JSON.stringify({ error: 'AI未返回有效幻灯片数据' })}\n\n`));
+        return; // finally 会关闭 writer
+      }
+
+      if (slides[0]?.type !== 'cover') {
+        slides.unshift({ type: 'cover', title: topic, subtitle: '' });
+      }
+      if (slides[slides.length - 1]?.type !== 'end') {
+        slides.push({ type: 'end', title: '谢谢', subtitle: '感谢聆听' });
+      }
+
+      await writer.write(enc.encode(`data: ${JSON.stringify({ slides: slides.slice(0, maxSlides) })}\n\n`));
+    } catch (e) {
+      await writer.write(enc.encode(`data: ${JSON.stringify({ error: e.message })}\n\n`));
+    } finally {
+      await writer.close();
+    }
+  })();
+
+  return new Response(readable, { status: 200, headers: sseHeaders });
 }
 
 // ── CORS 工具 ─────────────────────────────────────────────
