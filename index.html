@@ -204,7 +204,7 @@ select option{background:#1E2128;}
     <div>
       <p class="stitle">生成设置</p>
       <div class="grid2">
-        <div class="field"><label>最大幻灯片数</label><input type="number" id="maxS" value="12" min="1"></div>
+        <div class="field"><label>最少内容页数</label><input type="number" id="maxS" value="15" min="1"></div>
         <div class="field"><label>每页最多要点</label><input type="number" id="maxP" value="4" min="2" max="6"></div>
       </div>
     </div>
@@ -470,8 +470,10 @@ function confirmAndRender() {
 // ── 生成 ───────────────────────────────────────────────
 async function generate(){
   const isTopicMode = G_activeTab === 'topic';
-  const ms=parseInt(document.getElementById('maxS').value)||12;
+  const ms=parseInt(document.getElementById('maxS').value)||15;
   const mp=parseInt(document.getElementById('maxP').value)||4;
+  // ms 是用户指定的内容页数，传给后端时加3（封面+目录+结尾），让 AI 有足够空间
+  const msTotal = ms + 3;
   const btn=document.getElementById('genBtn');
   const sb=document.getElementById('sb');
 
@@ -509,7 +511,7 @@ async function generate(){
     document.getElementById('s1').textContent = '主题创作 · AI';
     try {
       setprog(30);
-      const slides = await generateFromTopic(topic, {maxSlides: ms, maxPoints: mp});
+      const slides = await generateFromTopic(topic, {maxSlides: msTotal, maxContentSlides: ms, maxPoints: mp});
       setprog(70);
       document.getElementById('s2').textContent=slides.filter(s=>s.type==='content').length+' 个';
       document.getElementById('s3').textContent=slides.length+' 张';
@@ -534,11 +536,11 @@ async function generate(){
   let slides;
   try {
     setprog(30);
-    slides = await SlideParser.parseWithAI(raw,{maxSlides:ms,maxPointsPerSlide:mp});
+    slides = await SlideParser.parseWithAI(raw,{maxSlides:msTotal,maxContentSlides:ms,maxPointsPerSlide:mp});
     document.getElementById('s1').textContent=(sn[st]||st)+' · AI';
     s4.className='pill pg'; s4.textContent='✓ 大纲已生成，请确认后生成预览';
   } catch(e) {
-    slides=SlideParser.parse(raw,{maxSlides:ms,maxPointsPerSlide:mp});
+    slides=SlideParser.parse(raw,{maxSlides:msTotal,maxPointsPerSlide:mp});
     document.getElementById('s1').textContent=(sn[st]||st)+' · 本地';
     setStatus('⚠ AI失败，已降级本地解析','#f59e0b');
   }
@@ -570,7 +572,7 @@ function setStatus(msg, color){
 
 // ── 主题生成：SSE 流式读取 /api/generate ──────────────
 async function generateFromTopic(topic, opts = {}) {
-  const { maxSlides = 12, maxPoints = 4 } = opts;
+  const { maxSlides = 18, maxContentSlides = 15, maxPoints = 4 } = opts;
 
   const streamBox   = document.getElementById('streamBox');
   const streamBody  = document.getElementById('streamBody');
@@ -586,7 +588,7 @@ async function generateFromTopic(topic, opts = {}) {
   const resp = await fetch('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ topic, maxSlides, maxPoints })
+    body: JSON.stringify({ topic, maxSlides, maxContentSlides, maxPoints })
   });
 
   if (!resp.ok) {
