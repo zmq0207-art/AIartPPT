@@ -236,7 +236,8 @@ select option{background:#1E2128;}
       </div>
       <div class="outline-body" id="outlineBody"></div>
       <div class="outline-foot" id="outlineFoot">
-        <button class="outline-add" onclick="addOutlineSlide()">＋ 添加幻灯片</button>
+        <button class="outline-add" onclick="addOutlineSlide('section')">＋ 添加章节页</button>
+        <button class="outline-add" onclick="addOutlineSlide('content')">＋ 添加内容页</button>
         <button class="confirm-btn" onclick="confirmAndRender()">✦ 确认生成 PPT 预览</button>
       </div>
     </div>
@@ -325,7 +326,7 @@ function readOutlineFromDOM() {
     const pts = Array.from(card.querySelectorAll('.oc-pt-inp:not(.oc-subtitle):not(.oc-content-subtitle)')).map(i=>i.value.trim()).filter(Boolean);
     const obj = { type, title };
     if (['content','agenda'].includes(type)) obj.points = pts;
-    if (['cover','end'].includes(type)) {
+    if (['cover','end','section'].includes(type)) {
       const sub = card.querySelector('.oc-subtitle');
       if (sub) obj.subtitle = sub.value.trim();
     }
@@ -338,12 +339,13 @@ function readOutlineFromDOM() {
 }
 
 // ── 渲染大纲编辑区 ─────────────────────────────────────
-const typeLabel = { cover:'封面', agenda:'目录', content:'内容页', end:'结尾' };
+const typeLabel = { cover:'封面', agenda:'目录', section:'章节页', content:'内容页', end:'结尾' };
 const typeBadgeStyle = {
-  cover:  'background:var(--acg);color:var(--ac)',
-  agenda: 'background:rgba(78,201,148,.12);color:var(--ok)',
-  content:'background:rgba(255,255,255,.06);color:var(--mu)',
-  end:    'background:rgba(78,201,148,.12);color:var(--ok)'
+  cover:   'background:var(--acg);color:var(--ac)',
+  agenda:  'background:rgba(78,201,148,.12);color:var(--ok)',
+  section: 'background:rgba(251,191,36,.12);color:#fbbf24',
+  content: 'background:rgba(255,255,255,.06);color:var(--mu)',
+  end:     'background:rgba(78,201,148,.12);color:var(--ok)'
 };
 
 function buildOutline(slides) {
@@ -381,6 +383,14 @@ function makeCard(sl) {
     const subRow = document.createElement('div');
     subRow.style.cssText = 'padding:0 10px 8px;';
     subRow.innerHTML = `<input class="oc-pt-inp oc-subtitle" value="${esc(sl.subtitle||'')}" placeholder="副标题（可选）" style="width:100%">`;
+    card.appendChild(subRow);
+  }
+
+  // section 页副标题（章节说明）
+  if (sl.type === 'section') {
+    const subRow = document.createElement('div');
+    subRow.style.cssText = 'padding:0 10px 8px;';
+    subRow.innerHTML = `<input class="oc-pt-inp oc-subtitle" value="${esc(sl.subtitle||'')}" placeholder="章节说明（可选，一句话概括本章内容）" style="width:100%">`;
     card.appendChild(subRow);
   }
 
@@ -434,12 +444,13 @@ function updateOutlineCount() {
   document.getElementById('outlineCount').textContent = `· ${n} 张`;
 }
 
-function addOutlineSlide() {
+function addOutlineSlide(type) {
   const body = document.getElementById('outlineBody');
-  // 插到最后一个 end 之前
   const cards = body.querySelectorAll('.oc');
   const endCard = Array.from(cards).find(c=>c.dataset.type==='end');
-  const newSlide = { type:'content', title:'新幻灯片', points:['要点一','要点二'] };
+  const newSlide = type === 'section'
+    ? { type:'section', title:'第X章 章节名', subtitle:'' }
+    : { type:'content', title:'新幻灯片', points:['要点一','要点二'] };
   const card = makeCard(newSlide);
   if (endCard) body.insertBefore(card, endCard);
   else body.appendChild(card);
@@ -694,7 +705,7 @@ function renderAll(sls,th){
   const pa=document.getElementById('pa');
   pa.querySelectorAll('.scard').forEach(e=>e.remove());
   document.getElementById('em').style.display='none';
-  const lb={cover:'封面',agenda:'目录',content:'内容',end:'结尾'};
+  const lb={cover:'封面',agenda:'目录',section:'章节页',content:'内容',end:'结尾'};
   sls.forEach((sl,i)=>{
     const card=document.createElement('div');
     card.className='scard';
@@ -716,7 +727,7 @@ function renderAll(sls,th){
 
 // ── 构建单张幻灯片 HTML（960x540 坐标系）────────────────
 function buildSlideHTML(sl, th){
-  const cc=th.cover, ct=th.content, ca=th.agenda, ce=th.end;
+  const cc=th.cover, cs=th.section||th.cover, ct=th.content, ca=th.agenda, ce=th.end;
   const t = esc(sl.title||'');
   const sub = esc(sl.subtitle||'');
   if(sl.type==='cover'){
@@ -726,8 +737,17 @@ function buildSlideHTML(sl, th){
       + '<div style="font-size:40px;font-weight:700;color:#'+cc.titleColor+';line-height:1.3;max-height:160px;overflow:hidden;word-break:break-all;">'+t+'</div>'
       + subHTML + '</div>';
   }
-  if(sl.type==='end'){
-    const subHTML = sub ? '<div style="font-size:20px;color:#'+ce.subtitleColor+';max-height:80px;overflow:hidden;word-break:break-all;">'+sub+'</div>' : '';
+  if(sl.type==='section'){
+    const subHTML = sub ? '<div style="margin-top:18px;font-size:18px;color:#'+cs.subtitleColor+';opacity:0.85;line-height:1.5;max-width:600px;">'+sub+'</div>' : '';
+    return '<div style="width:960px;height:540px;background:#'+cs.bg+';display:flex;flex-direction:column;justify-content:center;padding:64px 72px;box-sizing:border-box;position:relative;overflow:hidden;">'
+      + '<div style="position:absolute;right:0;top:0;width:320px;height:100%;background:#'+cs.accentColor+';opacity:0.08;"></div>'
+      + '<div style="position:absolute;right:40px;top:50%;transform:translateY(-50%);width:180px;height:180px;border:3px solid #'+cs.accentColor+';border-radius:50%;opacity:0.15;"></div>'
+      + '<div style="width:56px;height:5px;background:#'+cs.accentColor+';border-radius:3px;margin-bottom:24px;flex-shrink:0;"></div>'
+      + '<div style="font-size:13px;font-weight:500;color:#'+(cs.labelColor||cs.accentColor)+';letter-spacing:0.12em;text-transform:uppercase;margin-bottom:14px;">SECTION</div>'
+      + '<div style="font-size:38px;font-weight:700;color:#'+cs.titleColor+';line-height:1.25;max-width:640px;word-break:break-all;">'+t+'</div>'
+      + subHTML + '</div>';
+  }
+  if(sl.type==='end'){    const subHTML = sub ? '<div style="font-size:20px;color:#'+ce.subtitleColor+';max-height:80px;overflow:hidden;word-break:break-all;">'+sub+'</div>' : '';
     return '<div style="width:960px;height:540px;background:#'+ce.bg+';display:flex;flex-direction:column;justify-content:center;padding:64px 72px;box-sizing:border-box;">'
       + '<div style="font-size:56px;font-weight:700;color:#'+ce.titleColor+';margin-bottom:22px;flex-shrink:0;">'+t+'</div>'
       + subHTML + '</div>';
