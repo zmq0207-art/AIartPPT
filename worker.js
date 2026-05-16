@@ -232,49 +232,88 @@ JSON格式：
     let fullText = '';
     const reader = dsResp.body.getReader();
     const dec = new TextDecoder();
+    let lineBuffer = '';
 
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = dec.decode(value, { stream: true });
-        // DeepSeek 返回多行 "data: {...}\n\n"
-        for (const line of chunk.split('\n')) {
+        // 追加到行缓冲，确保跨 chunk 的行能完整处理
+        lineBuffer += dec.decode(value, { stream: true });
+
+        // 按双换行切分（SSE 标准分隔符），保留未完成的部分
+        const parts = lineBuffer.split('\n\n');
+        lineBuffer = parts.pop(); // 最后一段可能不完整，留待下次
+
+        for (const part of parts) {
+          for (const line of part.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            const payload = trimmed.slice(5).trim();
+            if (payload === '[DONE]') continue;
+
+            let parsed;
+            try { parsed = JSON.parse(payload); } catch { continue; }
+
+            const token = parsed.choices?.[0]?.delta?.content || '';
+            if (!token) continue;
+
+            fullText += token;
+
+            // 推给前端
+            await writer.write(enc.encode(`data: ${JSON.stringify({ token })}\n\n`));
+          }
+        }
+      }
+
+      // 处理缓冲区剩余内容
+      if (lineBuffer.trim()) {
+        for (const line of lineBuffer.split('\n')) {
           const trimmed = line.trim();
           if (!trimmed.startsWith('data:')) continue;
           const payload = trimmed.slice(5).trim();
           if (payload === '[DONE]') continue;
-
           let parsed;
           try { parsed = JSON.parse(payload); } catch { continue; }
-
           const token = parsed.choices?.[0]?.delta?.content || '';
-          if (!token) continue;
-
-          fullText += token;
-
-          // 把每个 token 作为 SSE event 推给前端
-          await writer.write(enc.encode(`data: ${JSON.stringify({ token })}\n\n`));
+          if (token) fullText += token;
         }
       }
 
-      // 流结束后解析完整 JSON，推送 slides
-      const match = fullText.match(/```(?:json)?\s*([\s\S]*?)```/) ||
-                    fullText.match(/(\[[\s\S]*\])/);
-      const jsonStr = match ? match[1] : fullText;
+      // 流结束后解析完整 JSON
+      // 先尝试提取 markdown 代码块，再尝试提取 [...] 数组
+      let jsonStr = fullText;
+      const mdMatch = fullText.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (mdMatch) {
+        jsonStr = mdMatch[1];
+      } else {
+        // 找到第一个 [ 和最后一个 ] 之间的内容
+        const start = fullText.indexOf('[');
+        const end = fullText.lastIndexOf(']');
+        if (start !== -1 && end !== -1 && end > start) {
+          jsonStr = fullText.slice(start, end + 1);
+        }
+      }
 
       let slides;
       try {
         slides = JSON.parse(jsonStr.trim());
       } catch {
-        await writer.write(enc.encode(`data: ${JSON.stringify({ error: 'AI返回格式解析失败，请重试' })}\n\n`));
-        return; // finally 会关闭 writer
+        // 尝试修复常见问题：去掉末尾不完整的对象
+        try {
+          const lastComma = jsonStr.lastIndexOf(',');
+          const fixedStr = jsonStr.slice(0, lastComma) + ']';
+          slides = JSON.parse(fixedStr);
+        } catch {
+          await writer.write(enc.encode(`data: ${JSON.stringify({ error: 'AI返回格式解析失败，请重试' })}\n\n`));
+          return;
+        }
       }
 
       if (!Array.isArray(slides) || slides.length === 0) {
         await writer.write(enc.encode(`data: ${JSON.stringify({ error: 'AI未返回有效幻灯片数据' })}\n\n`));
-        return; // finally 会关闭 writer
+        return;
       }
 
       if (slides[0]?.type !== 'cover') {
