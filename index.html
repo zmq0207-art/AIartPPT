@@ -9,6 +9,7 @@
   onerror="this.onerror=null;this.src='https://unpkg.com/pptxgenjs@3.12.0/dist/pptxgen.bundle.js'"></script>
 <script src="parser.js"></script>
 <script src="themes.js"></script>
+<script src="layouts.js"></script>
 <script src="renderer.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -325,6 +326,7 @@ function readOutlineFromDOM() {
     const title = card.querySelector('.oc-title').value.trim();
     const pts = Array.from(card.querySelectorAll('.oc-pt-inp:not(.oc-subtitle):not(.oc-content-subtitle)')).map(i=>i.value.trim()).filter(Boolean);
     const obj = { type, title };
+    if (card.dataset.layout) obj.layout = card.dataset.layout;
     if (['content','agenda'].includes(type)) obj.points = pts;
     if (['cover','end','section'].includes(type)) {
       const sub = card.querySelector('.oc-subtitle');
@@ -366,16 +368,42 @@ function makeCard(sl) {
   const card = document.createElement('div');
   card.className = 'oc';
   card.dataset.type = sl.type;
+  card.dataset.layout = sl.layout || '';
 
   const canDelete = !['cover','end'].includes(sl.type);
 
-  // 头部：徽章 + 标题输入 + 删除
+  // 版式选择器（仅 content 页显示）
+  const layoutOptions = sl.type === 'content' ? (() => {
+    const layoutMap = {
+      '': '✦ 自动推荐',
+      'content_cards':       '卡片网格',
+      'content_stats':       '数据三列',
+      'content_timeline':    '横向流程',
+      'content_split':       '左右分栏',
+      'content_feature':     '左深右列',
+      'content_list_accent': '强调列表',
+    };
+    const sel = document.createElement('select');
+    sel.className = 'oc-layout-sel';
+    sel.style.cssText = 'font-size:11px;padding:2px 6px;background:var(--surf2);border:1px solid var(--bd);border-radius:4px;color:var(--mu);font-family:var(--sans);cursor:pointer;max-width:100px;';
+    Object.entries(layoutMap).forEach(([val, label]) => {
+      const opt = document.createElement('option');
+      opt.value = val; opt.textContent = label;
+      if (val === (sl.layout || '')) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.onchange = () => { card.dataset.layout = sel.value; };
+    return sel;
+  })() : null;
+
+  // 头部：徽章 + 标题输入 + 版式选择 + 删除
   const head = document.createElement('div');
   head.className = 'oc-head';
   head.innerHTML = `
     <span class="oc-badge" style="${typeBadgeStyle[sl.type]||typeBadgeStyle.content}">${typeLabel[sl.type]||sl.type}</span>
     <input class="oc-title" value="${esc(sl.title)}" placeholder="标题">
     ${canDelete ? `<button class="oc-del" title="删除此页" onclick="deleteCard(this)">✕</button>` : ''}`;
+  if (layoutOptions) head.insertBefore(layoutOptions, head.querySelector('.oc-del') || null);
   card.appendChild(head);
 
   // 副标题（cover / end）— 始终显示，方便用户编辑
@@ -726,7 +754,24 @@ function renderAll(sls,th){
 }
 
 // ── 构建单张幻灯片 HTML（960x540 坐标系）────────────────
-function buildSlideHTML(sl, th){
+function buildSlideHTML(sl, th) {
+  // 优先用 LayoutEngine；若 layouts.js 未加载则降级到旧逻辑
+  if (typeof LayoutEngine !== 'undefined') {
+    // 将主题颜色映射到 LayoutEngine 期望的格式
+    const mappedTheme = _mapThemeForLayout(th);
+    return LayoutEngine.buildHTML(sl, mappedTheme, sl.layout || null);
+  }
+  // ── 降级：原有渲染逻辑 ──────────────────────────────
+  return _buildSlideHTMLLegacy(sl, th);
+}
+
+// 将 ThemeEngine 的颜色对象透传给 LayoutEngine（完整透传，由 _enrichTheme 内部处理）
+function _mapThemeForLayout(th) {
+  return th;
+}
+
+// ── 原版渲染（降级备用）────────────────────────────────
+function _buildSlideHTMLLegacy(sl, th){
   const cc=th.cover, cs=th.section||th.cover, ct=th.content, ca=th.agenda, ce=th.end;
   const t = esc(sl.title||'');
   const sub = esc(sl.subtitle||'');
@@ -741,13 +786,13 @@ function buildSlideHTML(sl, th){
     const subHTML = sub ? '<div style="margin-top:18px;font-size:18px;color:#'+cs.subtitleColor+';opacity:0.85;line-height:1.5;max-width:600px;">'+sub+'</div>' : '';
     return '<div style="width:960px;height:540px;background:#'+cs.bg+';display:flex;flex-direction:column;justify-content:center;padding:64px 72px;box-sizing:border-box;position:relative;overflow:hidden;">'
       + '<div style="position:absolute;right:0;top:0;width:320px;height:100%;background:#'+cs.accentColor+';opacity:0.08;"></div>'
-      + '<div style="position:absolute;right:40px;top:50%;transform:translateY(-50%);width:180px;height:180px;border:3px solid #'+cs.accentColor+';border-radius:50%;opacity:0.15;"></div>'
       + '<div style="width:56px;height:5px;background:#'+cs.accentColor+';border-radius:3px;margin-bottom:24px;flex-shrink:0;"></div>'
       + '<div style="font-size:13px;font-weight:500;color:#'+(cs.labelColor||cs.accentColor)+';letter-spacing:0.12em;text-transform:uppercase;margin-bottom:14px;">SECTION</div>'
       + '<div style="font-size:38px;font-weight:700;color:#'+cs.titleColor+';line-height:1.25;max-width:640px;word-break:break-all;">'+t+'</div>'
       + subHTML + '</div>';
   }
-  if(sl.type==='end'){    const subHTML = sub ? '<div style="font-size:20px;color:#'+ce.subtitleColor+';max-height:80px;overflow:hidden;word-break:break-all;">'+sub+'</div>' : '';
+  if(sl.type==='end'){
+    const subHTML = sub ? '<div style="font-size:20px;color:#'+ce.subtitleColor+';max-height:80px;overflow:hidden;word-break:break-all;">'+sub+'</div>' : '';
     return '<div style="width:960px;height:540px;background:#'+ce.bg+';display:flex;flex-direction:column;justify-content:center;padding:64px 72px;box-sizing:border-box;">'
       + '<div style="font-size:56px;font-weight:700;color:#'+ce.titleColor+';margin-bottom:22px;flex-shrink:0;">'+t+'</div>'
       + subHTML + '</div>';
