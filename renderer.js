@@ -11,9 +11,16 @@ const PptxRenderer = {
    */
   async render(slides, theme, fileName = '演示文稿') {
     const pptx = new PptxGenJS();
-    pptx.layout = 'LAYOUT_16x9';   // 16:9，宽 10" 高 5.625"
+    pptx.layout = 'LAYOUT_16x9';
 
     for (const slide of slides) {
+      // 优先用 LayoutEngine 渲染
+      if (typeof LayoutEngine !== 'undefined' && slide.type !== undefined) {
+        const layoutId = slide.layout || null;
+        LayoutEngine.buildPptx(pptx, slide, theme, layoutId);
+        continue;
+      }
+      // 降级：原有渲染
       switch (slide.type) {
         case 'cover':   this._cover(pptx, slide, theme);   break;
         case 'agenda':  this._agenda(pptx, slide, theme);  break;
