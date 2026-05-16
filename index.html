@@ -9,7 +9,8 @@
   onerror="this.onerror=null;this.src='https://unpkg.com/pptxgenjs@3.12.0/dist/pptxgen.bundle.js'"></script>
 <script src="parser.js"></script>
 <script src="themes.js"></script>
-<script src="layouts.js"></script>
+<script src="LayoutRenderer.js"></script>
+<script src="LayoutEngine.js"></script>
 <script src="renderer.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -263,6 +264,20 @@ select option{background:#1E2128;}
 <script>
 let G_slides=null, G_theme='corporate';
 let G_outlineCollapsed=false;
+let G_layoutReady=false;  // LayoutEngine 是否初始化完成
+
+// ── LayoutEngine 异步初始化 ───────────────────────────────
+(async function(){
+  try {
+    await LayoutEngine.init('./layouts');
+    G_layoutReady = true;
+    console.log('[LayoutEngine] 版式库加载完成，共', LayoutEngine.list().length, '个版式');
+  } catch(e) {
+    // 降级：layouts/ 目录不存在时（如直接打开 HTML 文件），使用旧版 layouts.js 逻辑
+    console.warn('[LayoutEngine] 版式 JSON 加载失败，使用内置降级渲染', e.message);
+    G_layoutReady = false;
+  }
+})();
 
 // ── 主题初始化 ──────────────────────────────────────────
 (function(){
@@ -755,13 +770,9 @@ function renderAll(sls,th){
 
 // ── 构建单张幻灯片 HTML（960x540 坐标系）────────────────
 function buildSlideHTML(sl, th) {
-  // 优先用 LayoutEngine；若 layouts.js 未加载则降级到旧逻辑
-  if (typeof LayoutEngine !== 'undefined') {
-    // 将主题颜色映射到 LayoutEngine 期望的格式
-    const mappedTheme = _mapThemeForLayout(th);
-    return LayoutEngine.buildHTML(sl, mappedTheme, sl.layout || null);
+  if (typeof LayoutEngine !== 'undefined' && typeof LayoutRenderer !== 'undefined') {
+    return LayoutEngine.buildHTML(sl, th, sl.layout || null);
   }
-  // ── 降级：原有渲染逻辑 ──────────────────────────────
   return _buildSlideHTMLLegacy(sl, th);
 }
 
@@ -838,12 +849,33 @@ function _buildSlideHTMLLegacy(sl, th){
 // ── 下载 ───────────────────────────────────────────────
 async function downloadPptx(){
   if(!G_slides)return;
-  setprog(30);
+  setprog(20);
   try{
+    // 下载前批量预加载所有需要的版式定义，确保 regions 已就绪
+    if(typeof LayoutEngine !== 'undefined') {
+      setprog(40);
+      await LayoutEngine.preloadAll(G_slides);
+    }
+    setprog(60);
     await PptxRenderer.render(G_slides,ThemeEngine.get(G_theme),G_slides[0]?.title||'演示文稿');
     setprog(100);setTimeout(()=>setprog(0),600);
   }catch(e){alert('生成失败：'+e.message);setprog(0);}
 }
+
+// 版式异步加载完成后重新渲染对应幻灯片
+window._onLayoutReady = function(layoutId) {
+  if (!G_slides) return;
+  const th = ThemeEngine.get(G_theme);
+  // 找到所有使用该版式的幻灯片，重新渲染预览
+  const scards = document.querySelectorAll('.scard');
+  G_slides.forEach((sl, i) => {
+    const usedId = sl.layout || (typeof LayoutEngine !== 'undefined' ? LayoutEngine.recommend(sl) : null);
+    if (usedId === layoutId && scards[i]) {
+      const inner = scards[i].querySelector('.sc-inner');
+      if (inner) inner.innerHTML = buildSlideHTML(sl, th);
+    }
+  });
+};
 
 // ── 清空 ───────────────────────────────────────────────
 function clearAll(){
