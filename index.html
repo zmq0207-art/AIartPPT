@@ -110,6 +110,14 @@ select option{background:#1E2128;}
   margin-bottom:-169px;
 }
 
+/* 流式输出显示区 */
+.stream-box{width:660px;margin:0 auto;background:var(--surf);border:1px solid var(--bd);border-radius:12px;overflow:hidden;display:none;}
+.stream-box.on{display:block;}
+.stream-header{padding:8px 14px;background:var(--surf2);border-bottom:1px solid var(--bd);font-size:11px;color:var(--mu);display:flex;align-items:center;gap:8px;}
+.stream-dot{width:6px;height:6px;border-radius:50%;background:var(--ac);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.stream-body{padding:14px 16px;font-size:12px;font-family:monospace;color:var(--mu);line-height:1.7;max-height:220px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;}
+.stream-body .hi{color:var(--ac);}
 .prog{position:fixed;top:56px;left:0;height:2px;background:var(--ac);transition:width .3s;z-index:100;display:none;}
 </style>
 </head>
@@ -177,6 +185,13 @@ select option{background:#1E2128;}
 
   <main class="preview" id="pa">
     <div class="empty" id="em"><em>🎞</em><p>在左侧输入内容<br>点击「解析并生成预览」</p></div>
+    <div class="stream-box" id="streamBox">
+      <div class="stream-header">
+        <div class="stream-dot" id="streamDot"></div>
+        <span id="streamLabel">AI 正在创作大纲…</span>
+      </div>
+      <div class="stream-body" id="streamBody"></div>
+    </div>
   </main>
 </div>
 <div class="prog" id="prog"></div>
@@ -320,17 +335,81 @@ function setStatus(msg, color){
   el.textContent=msg;
 }
 
-// ── 主题生成：调用 /api/generate ──────────────────────
+// ── 主题生成：SSE 流式读取 /api/generate ──────────────
 async function generateFromTopic(topic, opts = {}) {
   const { maxSlides = 12, maxPoints = 4 } = opts;
+
+  // 显示流式输出区
+  const streamBox  = document.getElementById('streamBox');
+  const streamBody = document.getElementById('streamBody');
+  const streamLabel= document.getElementById('streamLabel');
+  const streamDot  = document.getElementById('streamDot');
+  streamBox.classList.add('on');
+  streamBody.textContent = '';
+  streamLabel.textContent = 'AI 正在创作大纲…';
+  streamDot.style.animation = 'pulse 1s infinite';
+  document.getElementById('em').style.display = 'none';
+
   const resp = await fetch('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ topic, maxSlides, maxPoints })
   });
-  const data = await resp.json();
-  if (!resp.ok) throw new Error(data.error || `请求失败 ${resp.status}`);
-  return data.slides;
+
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}));
+    throw new Error(data.error || `请求失败 ${resp.status}`);
+  }
+
+  // 读取 SSE 流
+  const reader = resp.body.getReader();
+  const dec = new TextDecoder();
+  let buffer = '';
+  let slides = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += dec.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop(); // 保留未完成的行
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const payload = trimmed.slice(5).trim();
+      if (!payload) continue;
+
+      let evt;
+      try { evt = JSON.parse(payload); } catch { continue; }
+
+      if (evt.error) {
+        throw new Error(evt.error);
+      }
+
+      if (evt.token) {
+        // 实时追加 token 到显示区，高亮 JSON 关键字
+        streamBody.textContent += evt.token;
+        streamBody.scrollTop = streamBody.scrollHeight;
+      }
+
+      if (evt.slides) {
+        slides = evt.slides;
+      }
+    }
+  }
+
+  // 完成
+  streamDot.style.animation = 'none';
+  streamDot.style.background = 'var(--ok)';
+  streamLabel.textContent = '✓ 大纲生成完成，正在渲染幻灯片…';
+
+  // 短暂停留后隐藏流式区域
+  setTimeout(() => { streamBox.classList.remove('on'); }, 1800);
+
+  if (!slides) throw new Error('未收到有效幻灯片数据');
+  return slides;
 }
 
 // ── 渲染所有幻灯片 ─────────────────────────────────────
@@ -453,6 +532,8 @@ function clearAll(){
   document.getElementById('sb').classList.remove('on');
   document.getElementById('em').style.display='';
   document.getElementById('pa').querySelectorAll('.scard').forEach(e=>e.remove());
+  const sb2=document.getElementById('streamBox');
+  if(sb2){sb2.classList.remove('on');document.getElementById('streamBody').textContent='';}
 }
 
 // ── 进度条 ─────────────────────────────────────────────
