@@ -2,34 +2,34 @@
  * SlideForge — Cloudflare Worker
  *
  * 路由：
- *   POST /api/parse    → 文章文本解析为幻灯片，Key 存在环境变量 DEEPSEEK_API_KEY
- *   POST /api/generate → 根据一句话主题创作幻灯片内容
- *   其他               → 交给 Assets 静态托管（index.html / parser.js 等）
+ *   POST /api/parse         → 文章文本解析为幻灯片
+ *   POST /api/generate      → 根据主题创作幻灯片（SSE 流式）
+ *   GET  /api/layouts       → 版式目录（仅元信息，用于前端索引）
+ *   GET  /api/layouts/:id   → 单个版式完整定义（含 regions）
+ *   其他                    → 交给 Assets 静态托管
  *
- * 部署后在 Cloudflare Dashboard → Workers → aiartppt → Settings → Variables
- * 添加环境变量：DEEPSEEK_API_KEY = sk-xxxxxxxxxxxx
+ * 环境变量（Cloudflare Dashboard → Workers → Settings → Variables）：
+ *   DEEPSEEK_API_KEY = sk-xxxxxxxxxxxx
+ *
+ * D1 绑定（wrangler.jsonc 里配置）：
+ *   binding = "DB"   → 版式库数据库
  */
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // ── 拦截 /api/parse（POST + OPTIONS 预检）────────────
-    if (url.pathname === '/api/parse') {
-      return handleParse(request, env);
+    if (url.pathname === '/api/parse')    return handleParse(request, env);
+    if (url.pathname === '/api/generate') return handleGenerate(request, env);
+
+    // ── 版式库接口 ────────────────────────────────────────
+    if (url.pathname === '/api/layouts')  return handleLayoutIndex(request, env);
+    if (url.pathname.startsWith('/api/layouts/')) {
+      const id = url.pathname.replace('/api/layouts/', '').trim();
+      return handleLayoutGet(request, env, id);
     }
 
-    // ── 拦截 /api/generate（主题生成）───────────────────
-    if (url.pathname === '/api/generate') {
-      return handleGenerate(request, env);
-    }
-
-    // ── 屏蔽 worker.js 直接访问 ──────────────────────────
-    if (url.pathname === '/worker.js') {
-      return new Response('Not Found', { status: 404 });
-    }
-
-    // ── 其他请求交给静态资源 ──────────────────────────────
+    if (url.pathname === '/worker.js')    return new Response('Not Found', { status: 404 });
     return env.ASSETS.fetch(request);
   }
 };
@@ -464,4 +464,98 @@ function corsResponse(data, status) {
     data !== null ? JSON.stringify(data) : null,
     { status, headers }
   );
+}
+
+
+// ── /api/layouts — 版式目录（仅元信息）────────────────────
+async function handleLayoutIndex(request, env) {
+  const cors = {
+    'Access-Control-Allow-Origin': '*',
+    'Content-Type': 'application/json'
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: {
+      ...cors, 'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type'
+    }});
+  }
+
+  if (!env.DB) {
+    return new Response(JSON.stringify({ error: 'DB binding not configured' }), { status: 500, headers: cors });
+  }
+
+  try {
+    // 只返回元信息，不含 regions（减少传输量）
+    const { results } = await env.DB.prepare(
+      'SELECT id, name, slide_type, tags, point_min, point_max, slots FROM layouts ORDER BY slide_type, id'
+    ).all();
+
+    const index = results.map(r => ({
+      id:         r.id,
+      name:       r.name,
+      slideType:  r.slide_type,
+      tags:       JSON.parse(r.tags || '[]'),
+      pointRange: r.point_min != null ? [r.point_min, r.point_max] : null,
+      slots:      JSON.parse(r.slots || '[]')
+    }));
+
+    return new Response(JSON.stringify({ layouts: index }), {
+      status: 200,
+      headers: { ...cors, 'Cache-Control': 'public, max-age=300' }  // CDN 缓存5分钟
+    });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: cors });
+  }
+}
+
+
+// ── /api/layouts/:id — 单个版式完整定义 ────────────────────
+async function handleLayoutGet(request, env, id) {
+  const cors = {
+    'Access-Control-Allow-Origin': '*',
+    'Content-Type': 'application/json'
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: {
+      ...cors, 'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type'
+    }});
+  }
+
+  if (!id || !/^[a-z0-9_]+$/.test(id)) {
+    return new Response(JSON.stringify({ error: 'Invalid layout id' }), { status: 400, headers: cors });
+  }
+
+  if (!env.DB) {
+    return new Response(JSON.stringify({ error: 'DB binding not configured' }), { status: 500, headers: cors });
+  }
+
+  try {
+    const row = await env.DB.prepare(
+      'SELECT id, name, slide_type, tags, point_min, point_max, slots, regions FROM layouts WHERE id = ?'
+    ).bind(id).first();
+
+    if (!row) {
+      return new Response(JSON.stringify({ error: `Layout not found: ${id}` }), { status: 404, headers: cors });
+    }
+
+    const def = {
+      id:         row.id,
+      name:       row.name,
+      slideType:  row.slide_type,
+      tags:       JSON.parse(row.tags || '[]'),
+      pointRange: row.point_min != null ? [row.point_min, row.point_max] : null,
+      slots:      JSON.parse(row.slots || '[]'),
+      regions:    JSON.parse(row.regions || '[]')
+    };
+
+    return new Response(JSON.stringify(def), {
+      status: 200,
+      headers: { ...cors, 'Cache-Control': 'public, max-age=3600' }  // CDN 缓存1小时
+    });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: cors });
+  }
 }
