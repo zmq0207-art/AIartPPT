@@ -130,6 +130,7 @@ select option{background:#1E2128;}
       <div class="tabs">
         <button class="tab on" onclick="stab('text',this)">粘贴文本</button>
         <button class="tab" onclick="stab('file',this)">上传文件</button>
+        <button class="tab" onclick="stab('topic',this)">✦ 主题生成</button>
       </div>
       <div class="pane on" id="tab-text">
         <textarea id="rawText" placeholder="粘贴文章、报告、演讲稿…&#10;&#10;支持 Markdown、中文编号大纲、纯文本段落"></textarea>
@@ -141,6 +142,12 @@ select option{background:#1E2128;}
           <small>支持 .txt · .md · .html</small>
         </div>
         <input type="file" id="fi" accept=".txt,.md,.html,.htm" style="display:none" onchange="rdf(event)">
+      </div>
+      <div class="pane" id="tab-topic">
+        <input type="text" id="topicText" placeholder="输入一句话主题，例如：人工智能对教育的影响"
+          style="width:100%;background:var(--surf2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;color:var(--tx);font-family:var(--sans);font-size:13px;outline:none;margin-bottom:10px;"
+          onkeydown="if(event.key==='Enter')generate()">
+        <p style="font-size:11px;color:var(--di);line-height:1.6;">AI 将根据主题自动创作 PPT 内容，无需提供原始文章。</p>
       </div>
     </div>
 
@@ -165,7 +172,7 @@ select option{background:#1E2128;}
       <div class="sr" style="margin-bottom:0"><span>状态</span><span id="s4" class="pill pb">就绪</span></div>
     </div>
 
-    <button class="genbtn" onclick="generate()">✦ 解析并生成预览</button>
+    <button class="genbtn" id="genBtn" onclick="generate()">✦ 解析并生成预览</button>
   </aside>
 
   <main class="preview" id="pa">
@@ -193,13 +200,6 @@ let G_slides=null, G_theme='corporate';
   });
 })();
 
-// ── Tab ────────────────────────────────────────────────
-function stab(n,b){
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
-  document.querySelectorAll('.pane').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on'); document.getElementById('tab-'+n).classList.add('on');
-}
-
 // ── 文件 ───────────────────────────────────────────────
 function dov(e){e.preventDefault();document.getElementById('dz').classList.add('over');}
 function dol(){document.getElementById('dz').classList.remove('over');}
@@ -217,15 +217,35 @@ function rdfile(f){
   r.readAsText(f,'utf-8');
 }
 
+// ── 当前激活 tab ────────────────────────────────────────
+let G_activeTab = 'text';
+
+// ── Tab ────────────────────────────────────────────────
+function stab(n,b){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.pane').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); document.getElementById('tab-'+n).classList.add('on');
+  G_activeTab = n;
+  const btn = document.getElementById('genBtn');
+  btn.textContent = n === 'topic' ? '✦ 根据主题生成 PPT' : '✦ 解析并生成预览';
+}
+
 // ── 生成 ───────────────────────────────────────────────
 async function generate(){
-  const raw=document.getElementById('rawText').value.trim();
-  if(!raw){alert('请先输入内容');return;}
-
+  const isTopicMode = G_activeTab === 'topic';
   const ms=parseInt(document.getElementById('maxS').value)||12;
   const mp=parseInt(document.getElementById('maxP').value)||4;
-  const btn=document.querySelector('.genbtn');
+  const btn=document.getElementById('genBtn');
   const sb=document.getElementById('sb');
+
+  let raw, topic;
+  if (isTopicMode) {
+    topic = document.getElementById('topicText').value.trim();
+    if(!topic){alert('请输入 PPT 主题');return;}
+  } else {
+    raw=document.getElementById('rawText').value.trim();
+    if(!raw){alert('请先输入内容');return;}
+  }
 
   // 显示解析结果区，状态改为"解析中"
   sb.classList.add('on');
@@ -237,6 +257,27 @@ async function generate(){
   btn.disabled=true;
   btn.textContent='⏳ AI 生成中…';
   setprog(15);
+
+  if (isTopicMode) {
+    document.getElementById('s1').textContent = '主题创作 · AI';
+    try {
+      setprog(30);
+      G_slides = await generateFromTopic(topic, {maxSlides: ms, maxPoints: mp});
+      setprog(80);
+      document.getElementById('s2').textContent=G_slides.filter(s=>s.type==='content').length+' 个';
+      document.getElementById('s3').textContent=G_slides.length+' 张';
+      document.getElementById('s4').className='pill pg';
+      document.getElementById('s4').textContent='✓ 完成';
+      renderAll(G_slides, ThemeEngine.get(G_theme));
+      document.getElementById('dlBtn').disabled=false;
+    } catch(e) {
+      setStatus('⚠ 生成失败: '+e.message.slice(0,30),'#f59e0b');
+    }
+    btn.disabled=false;
+    btn.textContent='✦ 根据主题生成 PPT';
+    setprog(100); setTimeout(()=>setprog(0),600);
+    return;
+  }
 
   const st=StructureDetector.detect(TextCleaner.clean(raw));
   const sn={markdown:'Markdown',numbered:'数字编号',bullet:'Bullet列表',plain:'纯文本'};
@@ -277,6 +318,19 @@ function setStatus(msg, color){
   el.style.background='rgba(0,0,0,0.2)';
   el.style.color=color||'var(--mu)';
   el.textContent=msg;
+}
+
+// ── 主题生成：调用 /api/generate ──────────────────────
+async function generateFromTopic(topic, opts = {}) {
+  const { maxSlides = 12, maxPoints = 4 } = opts;
+  const resp = await fetch('/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic, maxSlides, maxPoints })
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || `请求失败 ${resp.status}`);
+  return data.slides;
 }
 
 // ── 渲染所有幻灯片 ─────────────────────────────────────
@@ -393,6 +447,7 @@ async function downloadPptx(){
 // ── 清空 ───────────────────────────────────────────────
 function clearAll(){
   document.getElementById('rawText').value='';
+  document.getElementById('topicText').value='';
   G_slides=null;
   document.getElementById('dlBtn').disabled=true;
   document.getElementById('sb').classList.remove('on');
