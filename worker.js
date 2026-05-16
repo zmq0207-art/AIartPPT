@@ -100,6 +100,7 @@ async function handleParse(request, env) {
 【约束】
 - 总幻灯片数：${maxSlides}张以内
 - 每页要点数：${maxPoints}个以内
+- 要点文字中禁止使用英文双引号（"），用中文引号（「」）代替
 
 【JSON格式示例】
 [
@@ -122,7 +123,7 @@ ${trimmedText}`;
       },
       body: JSON.stringify({
         model: 'deepseek-chat',
-        max_tokens: 4096,
+        max_tokens: 6000,
         temperature: 0.4,
         messages: [{ role: 'user', content: prompt }]
       })
@@ -157,7 +158,8 @@ ${trimmedText}`;
     return corsResponse({ error: 'AI未返回有效幻灯片数据' }, 502);
   }
 
-  // 保证首尾完整
+  // 先截断到 maxSlides，再保证首尾完整（避免补完首尾后超出限制）
+  slides = slides.slice(0, maxSlides);
   if (slides[0]?.type !== 'cover') {
     slides.unshift({ type: 'cover', title: '演示文稿', subtitle: '' });
   }
@@ -165,7 +167,7 @@ ${trimmedText}`;
     slides.push({ type: 'end', title: '谢谢', subtitle: '感谢聆听' });
   }
 
-  return corsResponse({ slides: slides.slice(0, maxSlides) }, 200);
+  return corsResponse({ slides }, 200);
 }
 
 // ── /api/generate 处理（SSE 流式推送，主题 → PPT）──────
@@ -233,7 +235,8 @@ async function handleGenerate(request, env) {
 【分页与结构规则】
 - 总张数：${maxSlides}张以内（含封面结尾）
 - 每页要点：${maxPoints}个以内，建议3-4个
-- 一个议题要点超过4个时必须拆成两页，第二页标题加"（续）"或换角度命名
+- 一个议题要点超过4个时必须拆成两页，第二页标题加（续）或换角度命名
+- 要点文字中禁止使用英文双引号，用中文引号（「」）代替
 - 章节逻辑递进：为什么（背景）→ 是什么（现状）→ 怎么做（方案）→ 怎么看（展望）
 - 如内容有明显章节，在开头加一张agenda目录页
 
@@ -255,7 +258,7 @@ async function handleGenerate(request, env) {
       },
       body: JSON.stringify({
         model: 'deepseek-chat',
-        max_tokens: 4096,
+        max_tokens: 6000,
         temperature: 0.6,
         stream: true,
         messages: [{ role: 'user', content: prompt }]
@@ -353,19 +356,23 @@ async function handleGenerate(request, env) {
         }
       }
 
-      let slides;
-      try {
-        slides = JSON.parse(jsonStr.trim());
-      } catch {
-        // 尝试修复常见问题：去掉末尾不完整的对象
-        try {
-          const lastComma = jsonStr.lastIndexOf(',');
-          const fixedStr = jsonStr.slice(0, lastComma) + ']';
-          slides = JSON.parse(fixedStr);
-        } catch {
-          await writer.write(enc.encode(`data: ${JSON.stringify({ error: 'AI返回格式解析失败，请重试' })}\n\n`));
-          return;
+      // 多层次 JSON 修复：依次尝试直接解析、去末尾残缺、逐步截断
+      const tryParseJSON = (str) => {
+        str = str.trim();
+        try { return JSON.parse(str); } catch {}
+        try { const lc=str.lastIndexOf(','); if(lc>0) return JSON.parse(str.slice(0,lc)+']'); } catch {}
+        try { const lb=str.lastIndexOf('}'); if(lb>0) return JSON.parse(str.slice(0,lb+1)+']'); } catch {}
+        for(let i=str.length-1;i>10;i--){
+          if(str[i]==='}'){
+            try{ const r=JSON.parse(str.slice(0,i+1)+']'); if(Array.isArray(r)&&r.length>0) return r; }catch{}
+          }
         }
+        return null;
+      };
+      let slides = tryParseJSON(jsonStr);
+      if (!slides) {
+        await writer.write(enc.encode(`data: ${JSON.stringify({ error: 'AI返回格式解析失败，请重试' })}\n\n`));
+        return;
       }
 
       if (!Array.isArray(slides) || slides.length === 0) {
@@ -373,6 +380,8 @@ async function handleGenerate(request, env) {
         return;
       }
 
+      // 先截断，再补首尾，保证结尾页不被截掉
+      slides = slides.slice(0, maxSlides);
       if (slides[0]?.type !== 'cover') {
         slides.unshift({ type: 'cover', title: topic, subtitle: '' });
       }
@@ -380,7 +389,7 @@ async function handleGenerate(request, env) {
         slides.push({ type: 'end', title: '谢谢', subtitle: '感谢聆听' });
       }
 
-      await writer.write(enc.encode(`data: ${JSON.stringify({ slides: slides.slice(0, maxSlides) })}\n\n`));
+      await writer.write(enc.encode(`data: ${JSON.stringify({ slides })}\n\n`));
     } catch (e) {
       await writer.write(enc.encode(`data: ${JSON.stringify({ error: e.message })}\n\n`));
     } finally {
