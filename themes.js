@@ -23,6 +23,13 @@ const ThemeEngine = {
         accentW: 1.4, accentH: 0.06,
         accentX: 0.5, accentY: 3.1
       },
+      section: {
+        bg: '0D2D52',           // 比封面稍浅的深蓝
+        titleColor: 'FFFFFF',
+        subtitleColor: '90CAF9',
+        accentColor: '2196F3',
+        labelColor: '2196F3'    // "SECTION" 标签文字色
+      },
       content: {
         bg: 'F5F9FF',
         headerBg: '0A2342',
@@ -30,7 +37,7 @@ const ThemeEngine = {
         bodyBg: 'FFFFFF',
         pointColor: '1A3558',
         bulletColor: '2196F3',
-        bulletShape: 'rect',   // rect | circle | line
+        bulletShape: 'rect',
         borderColor: 'DCE8F7'
       },
       agenda: {
@@ -71,6 +78,13 @@ const ThemeEngine = {
         accentColor: '00E5FF',
         accentW: 2.0, accentH: 0.04,
         accentX: 0.5, accentY: 3.0
+      },
+      section: {
+        bg: '141414',
+        titleColor: 'FFFFFF',
+        subtitleColor: '888888',
+        accentColor: '00E5FF',
+        labelColor: '00E5FF'
       },
       content: {
         bg: '111111',
@@ -121,6 +135,13 @@ const ThemeEngine = {
         accentW: 1.2, accentH: 0.06,
         accentX: 0.5, accentY: 3.15
       },
+      section: {
+        bg: '1E6B23',
+        titleColor: 'FFFFFF',
+        subtitleColor: 'A5D6A7',
+        accentColor: '69F0AE',
+        labelColor: '69F0AE'
+      },
       content: {
         bg: 'F1F8F1',
         headerBg: '2E7D32',
@@ -170,6 +191,13 @@ const ThemeEngine = {
         accentW: 1.6, accentH: 0.07,
         accentX: 0.5, accentY: 3.1
       },
+      section: {
+        bg: 'CC3D0D',
+        titleColor: 'FFFFFF',
+        subtitleColor: 'FFCCBC',
+        accentColor: 'FF6D00',
+        labelColor: 'FF9E57'
+      },
       content: {
         bg: 'FFF8F5',
         headerBg: 'BF360C',
@@ -218,6 +246,13 @@ const ThemeEngine = {
         accentColor: 'B0956F',
         accentW: 1.8, accentH: 0.05,
         accentX: 0.5, accentY: 3.2
+      },
+      section: {
+        bg: '677786',
+        titleColor: 'F7F4F0',
+        subtitleColor: 'C5CAD0',
+        accentColor: 'B0956F',
+        labelColor: 'C4A882'
       },
       content: {
         bg: 'F7F4F0',
