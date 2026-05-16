@@ -322,12 +322,16 @@ function readOutlineFromDOM() {
   return Array.from(cards).map(card => {
     const type = card.dataset.type;
     const title = card.querySelector('.oc-title').value.trim();
-    const pts = Array.from(card.querySelectorAll('.oc-pt-inp:not(.oc-subtitle)')).map(i=>i.value.trim()).filter(Boolean);
+    const pts = Array.from(card.querySelectorAll('.oc-pt-inp:not(.oc-subtitle):not(.oc-content-subtitle)')).map(i=>i.value.trim()).filter(Boolean);
     const obj = { type, title };
     if (['content','agenda'].includes(type)) obj.points = pts;
     if (['cover','end'].includes(type)) {
       const sub = card.querySelector('.oc-subtitle');
       if (sub) obj.subtitle = sub.value.trim();
+    }
+    if (type === 'content') {
+      const csub = card.querySelector('.oc-content-subtitle');
+      if (csub) obj.subtitle = csub.value.trim();
     }
     return obj;
   });
@@ -377,6 +381,14 @@ function makeCard(sl) {
     const subRow = document.createElement('div');
     subRow.style.cssText = 'padding:0 10px 8px;';
     subRow.innerHTML = `<input class="oc-pt-inp oc-subtitle" value="${esc(sl.subtitle||'')}" placeholder="副标题（可选）" style="width:100%">`;
+    card.appendChild(subRow);
+  }
+
+  // content 页副标题（核心论点）
+  if (sl.type === 'content') {
+    const subRow = document.createElement('div');
+    subRow.style.cssText = 'padding:0 10px 6px;';
+    subRow.innerHTML = `<input class="oc-pt-inp oc-content-subtitle" value="${esc(sl.subtitle||'')}" placeholder="本页核心论点（可选，20-40字）" style="width:100%;font-style:italic;color:var(--mu);">`;
     card.appendChild(subRow);
   }
 
@@ -734,7 +746,9 @@ function buildSlideHTML(sl, th){
       </div></div>`;
   }
   const pts=sl.points||[];
-  const rowH=Math.floor(400/Math.max(pts.length,1));
+  const subLine = sl.subtitle ? `<div style="padding:0 56px 0;min-height:28px;display:flex;align-items:center;background:#${ct.headerBg};border-top:1px solid rgba(255,255,255,0.07);"><span style="font-size:14px;color:#${ct.titleColor};opacity:0.65;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:848px;">${esc(sl.subtitle)}</span></div>` : '';
+  const bodyH = sl.subtitle ? 424 : 400;
+  const rowH=Math.floor(bodyH/Math.max(pts.length,1));
   const mkBullet=()=>{
     if(ct.bulletShape==='circle') return `<div style="width:14px;height:14px;min-width:14px;background:#${ct.bulletColor};border-radius:50%;flex-shrink:0;"></div>`;
     if(ct.bulletShape==='line')   return `<div style="width:4px;height:22px;min-width:4px;background:#${ct.bulletColor};border-radius:2px;flex-shrink:0;"></div>`;
@@ -744,6 +758,7 @@ function buildSlideHTML(sl, th){
     <div style="height:88px;min-height:88px;background:#${ct.headerBg};display:flex;align-items:center;padding:0 56px;">
       <span style="font-size:30px;font-weight:700;color:#${ct.titleColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:848px;">${t}</span>
     </div>
+    ${subLine}
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:14px 56px;gap:8px;overflow:hidden;">
       ${pts.map(pt=>`
         <div style="display:flex;align-items:center;gap:16px;height:${rowH}px;min-height:0;overflow:hidden;">
