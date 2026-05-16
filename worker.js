@@ -266,6 +266,8 @@ async function handleGenerate(request, env) {
       body: JSON.stringify({
         model: 'deepseek-chat',
         max_tokens: 10000,
+        temperature: 0.6,
+        stream: true,
         messages: [{ role: 'user', content: prompt }]
       })
     });
