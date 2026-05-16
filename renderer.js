@@ -15,10 +15,11 @@ const PptxRenderer = {
 
     for (const slide of slides) {
       switch (slide.type) {
-        case 'cover':  this._cover(pptx, slide, theme);   break;
-        case 'agenda': this._agenda(pptx, slide, theme);  break;
-        case 'content':this._content(pptx, slide, theme); break;
-        case 'end':    this._end(pptx, slide, theme);     break;
+        case 'cover':   this._cover(pptx, slide, theme);   break;
+        case 'agenda':  this._agenda(pptx, slide, theme);  break;
+        case 'section': this._section(pptx, slide, theme); break;
+        case 'content': this._content(pptx, slide, theme); break;
+        case 'end':     this._end(pptx, slide, theme);     break;
       }
     }
 
@@ -129,6 +130,70 @@ const PptxRenderer = {
         valign: 'middle', wrap: true
       });
     });
+  },
+
+  // ── 章节过渡页 ──────────────────────────────
+  _section(pptx, slide, theme) {
+    const s = pptx.addSlide();
+    const c = theme.section || theme.cover;   // 兜底用 cover
+    const f = theme.font;
+
+    // 主背景
+    s.addShape(pptx.ShapeType.rect, {
+      x: 0, y: 0, w: '100%', h: '100%',
+      fill: { color: c.bg }
+    });
+
+    // 右侧装饰色块（半透明感用深色叠加模拟）
+    s.addShape(pptx.ShapeType.rect, {
+      x: 6.8, y: 0, w: 3.2, h: '100%',
+      fill: { color: c.accentColor },
+      transparency: 90          // 10% 不透明
+    });
+
+    // 右侧装饰圆圈
+    s.addShape(pptx.ShapeType.ellipse, {
+      x: 7.6, y: 1.5, w: 2.2, h: 2.2,
+      fill: { type: 'none' },
+      line: { color: c.accentColor, width: 2.5, transparency: 80 }
+    });
+
+    // 顶部强调线
+    s.addShape(pptx.ShapeType.rect, {
+      x: 0.6, y: 1.55, w: 0.7, h: 0.06,
+      fill: { color: c.accentColor }
+    });
+
+    // "SECTION" 标签
+    s.addText('SECTION', {
+      x: 0.6, y: 1.72, w: 5, h: 0.35,
+      fontSize: 11, bold: true,
+      color: c.labelColor || c.accentColor,
+      fontFace: f.body,
+      align: 'left', charSpacing: 3
+    });
+
+    // 章节标题
+    s.addText(slide.title, {
+      x: 0.6, y: 2.15, w: 6.0, h: 1.6,
+      fontSize: f.titleSize - 2, bold: true,
+      color: c.titleColor,
+      fontFace: f.title,
+      align: 'left', valign: 'top',
+      wrap: true
+    });
+
+    // 章节说明副标题
+    if (slide.subtitle) {
+      s.addText(slide.subtitle, {
+        x: 0.6, y: 3.85, w: 6.0, h: 0.8,
+        fontSize: f.subtitleSize - 1,
+        color: c.subtitleColor,
+        fontFace: f.body,
+        align: 'left', valign: 'top',
+        wrap: true
+      });
+    }
   },
 
   // ── 内容页 ───────────────────────────────────
