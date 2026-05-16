@@ -73,6 +73,7 @@ select option{background:#1E2128;}
 .pg{background:rgba(78,201,148,.12);color:var(--ok);}
 .genbtn{padding:12px;background:var(--ac);color:#fff;border:none;border-radius:8px;font-size:14px;font-family:var(--sans);font-weight:500;cursor:pointer;margin-top:auto;transition:background .15s;}
 .genbtn:hover{background:var(--ach);}
+.genbtn:disabled{background:var(--surf2);color:var(--di);cursor:not-allowed;}
 
 /* Preview */
 .preview{grid-area:preview;overflow-y:auto;padding:1.5rem;display:flex;flex-direction:column;align-items:stretch;gap:14px;scrollbar-width:thin;}
@@ -126,6 +127,39 @@ select option{background:#1E2128;}
 .stream-typing span:nth-child(2){animation-delay:.2s;}
 .stream-typing span:nth-child(3){animation-delay:.4s;}
 @keyframes tdot{0%,80%,100%{opacity:.2}40%{opacity:1}}
+/* 大纲编辑区 */
+.outline-box{width:660px;margin:0 auto;background:var(--surf);border:1px solid var(--bd);border-radius:12px;display:none;}
+.outline-box.on{display:block;}
+.outline-hd{padding:10px 14px;background:var(--surf2);border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:8px;}
+.outline-hd-title{font-size:12px;font-weight:500;color:var(--tx);flex:1;}
+.outline-toggle{font-size:11px;color:var(--mu);cursor:pointer;padding:2px 8px;border-radius:4px;border:1px solid var(--bd);background:transparent;font-family:var(--sans);}
+.outline-toggle:hover{color:var(--tx);border-color:var(--bdh);}
+.outline-body{padding:10px 12px;display:flex;flex-direction:column;gap:5px;}
+.outline-body.collapsed{display:none;}
+.oc{background:var(--surf2);border:1px solid var(--bd);border-radius:8px;transition:border-color .15s;}
+.oc:hover{border-color:var(--bdh);}
+.oc-head{display:flex;align-items:center;gap:8px;padding:7px 10px;}
+.oc-badge{font-size:10px;padding:1px 7px;border-radius:20px;flex-shrink:0;}
+.oc-title{font-size:13px;color:var(--tx);font-weight:400;flex:1;outline:none;background:transparent;border:none;font-family:var(--sans);cursor:text;min-width:0;}
+.oc-title:focus{color:var(--tx);}
+.oc-del{font-size:13px;color:var(--di);cursor:pointer;padding:0 4px;line-height:1;background:transparent;border:none;opacity:0;transition:opacity .15s;}
+.oc:hover .oc-del{opacity:1;}
+.oc-del:hover{color:#f87171;}
+.oc-pts{padding:0 10px 8px 10px;display:flex;flex-direction:column;gap:3px;}
+.oc-pt{display:flex;align-items:center;gap:6px;}
+.oc-pt-dot{width:4px;height:4px;border-radius:50%;background:var(--di);flex-shrink:0;}
+.oc-pt-inp{flex:1;font-size:12px;color:var(--mu);background:transparent;border:none;outline:none;font-family:var(--sans);padding:2px 0;cursor:text;}
+.oc-pt-inp:focus{color:var(--tx);}
+.oc-pt-del{font-size:12px;color:var(--di);cursor:pointer;background:transparent;border:none;opacity:0;padding:0 2px;line-height:1;}
+.oc-pt:hover .oc-pt-del{opacity:1;}
+.oc-pt-del:hover{color:#f87171;}
+.oc-add-pt{font-size:11px;color:var(--di);cursor:pointer;background:transparent;border:none;font-family:var(--sans);padding:2px 10px 6px;text-align:left;width:100%;}
+.oc-add-pt:hover{color:var(--ac);}
+.outline-foot{padding:10px 12px;border-top:1px solid var(--bd);display:flex;gap:8px;align-items:center;}
+.outline-add{font-size:12px;color:var(--mu);cursor:pointer;background:transparent;border:1px solid var(--bd);border-radius:6px;padding:5px 10px;font-family:var(--sans);}
+.outline-add:hover{color:var(--tx);border-color:var(--bdh);}
+.confirm-btn{flex:1;padding:9px;background:var(--ac);color:#fff;border:none;border-radius:7px;font-size:13px;font-family:var(--sans);font-weight:500;cursor:pointer;transition:background .15s;}
+.confirm-btn:hover{background:var(--ach);}
 .prog{position:fixed;top:56px;left:0;height:2px;background:var(--ac);transition:width .3s;z-index:100;display:none;}
 </style>
 </head>
@@ -188,11 +222,26 @@ select option{background:#1E2128;}
       <div class="sr" style="margin-bottom:0"><span>状态</span><span id="s4" class="pill pb">就绪</span></div>
     </div>
 
-    <button class="genbtn" id="genBtn" onclick="generate()">✦ 解析并生成预览</button>
+    <button class="genbtn" id="genBtn" onclick="generate()">✦ 解析生成大纲</button>
   </aside>
 
   <main class="preview" id="pa">
-    <div class="empty" id="em"><em>🎞</em><p>在左侧输入内容<br>点击「解析并生成预览」</p></div>
+    <div class="empty" id="em"><em>🎞</em><p>在左侧输入内容<br>点击「解析生成大纲」</p></div>
+
+    <!-- 大纲编辑区（常驻） -->
+    <div class="outline-box" id="outlineBox">
+      <div class="outline-hd">
+        <span class="outline-hd-title">📋 大纲编辑 <span id="outlineCount" style="color:var(--mu);font-weight:300"></span></span>
+        <button class="outline-toggle" onclick="toggleOutline()">收起</button>
+      </div>
+      <div class="outline-body" id="outlineBody"></div>
+      <div class="outline-foot" id="outlineFoot">
+        <button class="outline-add" onclick="addOutlineSlide()">＋ 添加幻灯片</button>
+        <button class="confirm-btn" onclick="confirmAndRender()">✦ 确认生成 PPT 预览</button>
+      </div>
+    </div>
+
+    <!-- 流式生成进度 -->
     <div class="stream-box" id="streamBox">
       <div class="stream-header">
         <div class="stream-dot" id="streamDot"></div>
@@ -211,6 +260,7 @@ select option{background:#1E2128;}
 
 <script>
 let G_slides=null, G_theme='corporate';
+let G_outlineCollapsed=false;
 
 // ── 主题初始化 ──────────────────────────────────────────
 (function(){
@@ -255,7 +305,154 @@ function stab(n,b){
   b.classList.add('on'); document.getElementById('tab-'+n).classList.add('on');
   G_activeTab = n;
   const btn = document.getElementById('genBtn');
-  btn.textContent = n === 'topic' ? '✦ 根据主题生成 PPT' : '✦ 解析并生成预览';
+  btn.textContent = n === 'topic' ? '✦ 根据主题生成大纲' : '✦ 解析生成大纲';
+}
+
+// ── 大纲折叠/展开 ──────────────────────────────────────
+function toggleOutline(){
+  G_outlineCollapsed = !G_outlineCollapsed;
+  document.getElementById('outlineBody').classList.toggle('collapsed', G_outlineCollapsed);
+  document.getElementById('outlineFoot').style.display = G_outlineCollapsed ? 'none' : 'flex';
+  document.querySelector('.outline-toggle').textContent = G_outlineCollapsed ? '展开' : '收起';
+}
+
+// ── 从大纲 DOM 读取当前编辑状态 ──────────────────────
+function readOutlineFromDOM() {
+  const cards = document.querySelectorAll('.oc');
+  return Array.from(cards).map(card => {
+    const type = card.dataset.type;
+    const title = card.querySelector('.oc-title').value.trim();
+    const pts = Array.from(card.querySelectorAll('.oc-pt-inp:not(.oc-subtitle)')).map(i=>i.value.trim()).filter(Boolean);
+    const obj = { type, title };
+    if (['content','agenda'].includes(type)) obj.points = pts;
+    if (['cover','end'].includes(type)) {
+      const sub = card.querySelector('.oc-subtitle');
+      if (sub) obj.subtitle = sub.value.trim();
+    }
+    return obj;
+  });
+}
+
+// ── 渲染大纲编辑区 ─────────────────────────────────────
+const typeLabel = { cover:'封面', agenda:'目录', content:'内容页', end:'结尾' };
+const typeBadgeStyle = {
+  cover:  'background:var(--acg);color:var(--ac)',
+  agenda: 'background:rgba(78,201,148,.12);color:var(--ok)',
+  content:'background:rgba(255,255,255,.06);color:var(--mu)',
+  end:    'background:rgba(78,201,148,.12);color:var(--ok)'
+};
+
+function buildOutline(slides) {
+  const body = document.getElementById('outlineBody');
+  body.innerHTML = '';
+  slides.forEach(sl => body.appendChild(makeCard(sl)));
+  document.getElementById('outlineCount').textContent = `· ${slides.length} 张`;
+  document.getElementById('outlineBox').classList.add('on');
+  document.getElementById('em').style.display = 'none';
+  // 展开大纲
+  G_outlineCollapsed = false;
+  body.classList.remove('collapsed');
+  document.getElementById('outlineFoot').style.display = 'flex';
+  document.querySelector('.outline-toggle').textContent = '收起';
+}
+
+function makeCard(sl) {
+  const card = document.createElement('div');
+  card.className = 'oc';
+  card.dataset.type = sl.type;
+
+  const canDelete = !['cover','end'].includes(sl.type);
+
+  // 头部：徽章 + 标题输入 + 删除
+  const head = document.createElement('div');
+  head.className = 'oc-head';
+  head.innerHTML = `
+    <span class="oc-badge" style="${typeBadgeStyle[sl.type]||typeBadgeStyle.content}">${typeLabel[sl.type]||sl.type}</span>
+    <input class="oc-title" value="${esc(sl.title)}" placeholder="标题">
+    ${canDelete ? `<button class="oc-del" title="删除此页" onclick="deleteCard(this)">✕</button>` : ''}`;
+  card.appendChild(head);
+
+  // 副标题（cover / end）— 始终显示，方便用户编辑
+  if (['cover','end'].includes(sl.type)) {
+    const subRow = document.createElement('div');
+    subRow.style.cssText = 'padding:0 10px 8px;';
+    subRow.innerHTML = `<input class="oc-pt-inp oc-subtitle" value="${esc(sl.subtitle||'')}" placeholder="副标题（可选）" style="width:100%">`;
+    card.appendChild(subRow);
+  }
+
+  // 要点列表（content / agenda）
+  if (['content','agenda'].includes(sl.type)) {
+    const pts = document.createElement('div');
+    pts.className = 'oc-pts';
+    (sl.points||[]).forEach(pt => pts.appendChild(makePtRow(pt)));
+    // 添加要点按钮
+    const addPt = document.createElement('button');
+    addPt.className = 'oc-add-pt';
+    addPt.textContent = '＋ 添加要点';
+    addPt.onclick = () => {
+      const newRow = makePtRow('');
+      pts.insertBefore(newRow, addPt);
+      newRow.querySelector('.oc-pt-inp').focus();
+      updateOutlineCount();
+    };
+    pts.appendChild(addPt);
+    card.appendChild(pts);
+  }
+
+  return card;
+}
+
+function makePtRow(text) {
+  const row = document.createElement('div');
+  row.className = 'oc-pt';
+  row.innerHTML = `
+    <div class="oc-pt-dot"></div>
+    <input class="oc-pt-inp" value="${esc(text)}" placeholder="输入要点…">
+    <button class="oc-pt-del" onclick="this.closest('.oc-pt').remove();updateOutlineCount()">✕</button>`;
+  return row;
+}
+
+function deleteCard(btn) {
+  btn.closest('.oc').remove();
+  updateOutlineCount();
+}
+
+function updateOutlineCount() {
+  const n = document.querySelectorAll('.oc').length;
+  document.getElementById('outlineCount').textContent = `· ${n} 张`;
+}
+
+function addOutlineSlide() {
+  const body = document.getElementById('outlineBody');
+  // 插到最后一个 end 之前
+  const cards = body.querySelectorAll('.oc');
+  const endCard = Array.from(cards).find(c=>c.dataset.type==='end');
+  const newSlide = { type:'content', title:'新幻灯片', points:['要点一','要点二'] };
+  const card = makeCard(newSlide);
+  if (endCard) body.insertBefore(card, endCard);
+  else body.appendChild(card);
+  card.querySelector('.oc-title').focus();
+  updateOutlineCount();
+}
+
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── 确认大纲 → 生成 PPT 预览 ──────────────────────────
+function confirmAndRender() {
+  const slides = readOutlineFromDOM();
+  if (!slides.length) { alert('大纲为空'); return; }
+  G_slides = slides;
+  setprog(30);
+  // 收起大纲，显示幻灯片
+  G_outlineCollapsed = true;
+  document.getElementById('outlineBody').classList.add('collapsed');
+  document.getElementById('outlineFoot').style.display = 'none';
+  document.querySelector('.outline-toggle').textContent = '展开';
+  // 清除旧幻灯片卡片
+  document.getElementById('pa').querySelectorAll('.scard').forEach(e=>e.remove());
+  renderAll(G_slides, ThemeEngine.get(G_theme));
+  document.getElementById('dlBtn').disabled = false;
+  setprog(100); setTimeout(()=>setprog(0),600);
 }
 
 // ── 生成 ───────────────────────────────────────────────
@@ -275,10 +472,20 @@ async function generate(){
     if(!raw){alert('请先输入内容');return;}
   }
 
-  // 显示解析结果区，状态改为"解析中"
+  // 清除上次幻灯片预览和大纲
+  document.getElementById('pa').querySelectorAll('.scard').forEach(e=>e.remove());
+  document.getElementById('outlineBox').classList.remove('on');
+  const ob=document.getElementById('outlineBody');
+  ob.innerHTML='';
+  ob.classList.remove('collapsed');
+  document.getElementById('em').style.display='none';
+  document.getElementById('dlBtn').disabled = true;
+  G_slides = null;
+
   sb.classList.add('on');
-  document.getElementById('s4').className='pill pb';
-  document.getElementById('s4').textContent='⏳ 解析中…';
+  const s4=document.getElementById('s4');
+  s4.className='pill pb'; s4.style.background=''; s4.style.color='';
+  s4.textContent='⏳ 解析中…';
   document.getElementById('s1').textContent='—';
   document.getElementById('s2').textContent='—';
   document.getElementById('s3').textContent='—';
@@ -290,54 +497,54 @@ async function generate(){
     document.getElementById('s1').textContent = '主题创作 · AI';
     try {
       setprog(30);
-      G_slides = await generateFromTopic(topic, {maxSlides: ms, maxPoints: mp});
-      setprog(80);
-      document.getElementById('s2').textContent=G_slides.filter(s=>s.type==='content').length+' 个';
-      document.getElementById('s3').textContent=G_slides.length+' 张';
-      document.getElementById('s4').className='pill pg';
-      document.getElementById('s4').textContent='✓ 完成';
-      renderAll(G_slides, ThemeEngine.get(G_theme));
-      document.getElementById('dlBtn').disabled=false;
+      const slides = await generateFromTopic(topic, {maxSlides: ms, maxPoints: mp});
+      setprog(70);
+      document.getElementById('s2').textContent=slides.filter(s=>s.type==='content').length+' 个';
+      document.getElementById('s3').textContent=slides.length+' 张';
+      s4.className='pill pg'; s4.textContent='✓ 大纲已生成，请确认后生成预览';
+      buildOutline(slides);
     } catch(e) {
       document.getElementById('streamBox').classList.remove('on');
+      document.getElementById('em').style.display='';
       setStatus('⚠ 生成失败: '+e.message.slice(0,30),'#f59e0b');
     }
     btn.disabled=false;
-    btn.textContent='✦ 根据主题生成 PPT';
+    btn.textContent='✦ 根据主题生成大纲';
     setprog(100); setTimeout(()=>setprog(0),600);
     return;
   }
 
+  // 文章模式
   const st=StructureDetector.detect(TextCleaner.clean(raw));
   const sn={markdown:'Markdown',numbered:'数字编号',bullet:'Bullet列表',plain:'纯文本'};
   document.getElementById('s1').textContent=sn[st]||st;
 
+  let slides;
   try {
     setprog(30);
-    G_slides = await SlideParser.parseWithAI(raw,{maxSlides:ms,maxPointsPerSlide:mp});
+    slides = await SlideParser.parseWithAI(raw,{maxSlides:ms,maxPointsPerSlide:mp});
     document.getElementById('s1').textContent=(sn[st]||st)+' · AI';
-    document.getElementById('s4').className='pill pg';
-    document.getElementById('s4').textContent='✓ 完成';
+    s4.className='pill pg'; s4.textContent='✓ 大纲已生成，请确认后生成预览';
   } catch(e) {
-    // API 报错，降级到本地规则解析并提示
-    G_slides=SlideParser.parse(raw,{maxSlides:ms,maxPointsPerSlide:mp});
+    slides=SlideParser.parse(raw,{maxSlides:ms,maxPointsPerSlide:mp});
     document.getElementById('s1').textContent=(sn[st]||st)+' · 本地';
-    setStatus('⚠ AI失败: '+e.message.slice(0,30),'#f59e0b');
+    setStatus('⚠ AI失败，已降级本地解析','#f59e0b');
   }
 
-  setprog(80);
-  document.getElementById('s2').textContent=G_slides.filter(s=>s.type==='content').length+' 个';
-  document.getElementById('s3').textContent=G_slides.length+' 张';
-  // 只在没有错误状态时才覆盖为"完成"（AI失败时保留黄色警告）
-  if(document.getElementById('s4').textContent==='⏳ 解析中…' ||
-     document.getElementById('s4').textContent==='⏳'){
-    document.getElementById('s4').className='pill pg';
-    document.getElementById('s4').textContent='✓ 完成';
+  setprog(70);
+  if (!slides || !Array.isArray(slides) || slides.length === 0) {
+    setStatus('⚠ 解析失败，未获得有效大纲','#f59e0b');
+    document.getElementById('em').style.display='';
+    btn.disabled=false;
+    btn.textContent='✦ 解析生成大纲';
+    setprog(0);
+    return;
   }
-  renderAll(G_slides,ThemeEngine.get(G_theme));
-  document.getElementById('dlBtn').disabled=false;
+  document.getElementById('s2').textContent=slides.filter(s=>s.type==='content').length+' 个';
+  document.getElementById('s3').textContent=slides.length+' 张';
+  buildOutline(slides);
   btn.disabled=false;
-  btn.textContent='✦ 解析并生成预览';
+  btn.textContent='✦ 解析生成大纲';
   setprog(100);setTimeout(()=>setprog(0),600);
 }
 
@@ -355,13 +562,11 @@ async function generateFromTopic(topic, opts = {}) {
 
   const streamBox   = document.getElementById('streamBox');
   const streamBody  = document.getElementById('streamBody');
-  const streamLabel = document.getElementById('streamLabel');
   const streamDot   = document.getElementById('streamDot');
 
-  // 重置显示区
   streamBox.classList.add('on');
   streamBody.innerHTML = '<div class="stream-typing" id="streamTyping"><span></span><span></span><span></span><span style="margin-left:2px">AI 正在思考…</span></div>';
-  streamLabel.textContent = 'AI 正在创作大纲…';
+  document.getElementById('streamLabel').textContent = 'AI 正在创作大纲…';
   streamDot.style.animation = 'pulse 1s infinite';
   streamDot.style.background = 'var(--ac)';
   document.getElementById('em').style.display = 'none';
@@ -380,63 +585,60 @@ async function generateFromTopic(topic, opts = {}) {
   const reader = resp.body.getReader();
   const dec = new TextDecoder();
   let buffer = '';
-  let rawText = '';   // 累积所有 token 原文
+  let rawText = '';
   let slides = null;
-
-  // 实时解析：每当 rawText 中发现完整的 {...} 对象就渲染一张卡片
   let lastParsedCount = 0;
-  const typeLabel = { cover:'封面', agenda:'目录', content:'内容页', end:'结尾' };
-  const typeBadgeStyle = {
-    cover:  'background:var(--acg);color:var(--ac)',
-    agenda: 'background:rgba(78,201,148,.12);color:var(--ok)',
-    content:'background:rgba(255,255,255,.06);color:var(--mu)',
-    end:    'background:rgba(78,201,148,.12);color:var(--ok)'
-  };
 
   function tryRenderNewSlides() {
-    // 在 rawText 里找所有完整的 {...} 对象（顶层数组元素）
-    let searchFrom = 0;
-    let count = 0;
+    let searchFrom = 0, count = 0;
     while (true) {
       const start = rawText.indexOf('{', searchFrom);
       if (start === -1) break;
-      // 找匹配的右括号
-      let depth = 0, inStr = false, esc = false, end = -1;
+      let depth = 0, inStr = false, esc2 = false, end = -1;
       for (let i = start; i < rawText.length; i++) {
         const ch = rawText[i];
-        if (esc) { esc = false; continue; }
-        if (ch === '\\' && inStr) { esc = true; continue; }
+        if (esc2) { esc2 = false; continue; }
+        if (ch === '\\' && inStr) { esc2 = true; continue; }
         if (ch === '"') { inStr = !inStr; continue; }
         if (inStr) continue;
         if (ch === '{') depth++;
         else if (ch === '}') { depth--; if (depth === 0) { end = i; break; } }
       }
-      if (end === -1) break; // 对象不完整，等待更多 token
-
+      if (end === -1) break;
       count++;
       if (count > lastParsedCount) {
-        // 新增一个完整对象，尝试解析并渲染
         try {
           const obj = JSON.parse(rawText.slice(start, end + 1));
           if (obj && obj.type && obj.title) {
-            // 移除"思考中"占位
             const typing = document.getElementById('streamTyping');
             if (typing) typing.remove();
-
             const item = document.createElement('div');
             item.className = 'stream-item';
             item.style.animationDelay = (count * 40) + 'ms';
             const pts = (obj.points || []).slice(0, 3);
-            item.innerHTML = `
-              <span class="si-badge" style="${typeBadgeStyle[obj.type]||typeBadgeStyle.content}">${typeLabel[obj.type]||obj.type}</span>
-              <div>
-                <div class="si-title">${obj.title}</div>
-                ${pts.length ? `<div class="si-pts">${pts.map(p=>'· '+p).join('<br>')}</div>` : ''}
-              </div>`;
+            // 安全渲染：用 textContent 避免 XSS
+            const badge = document.createElement('span');
+            badge.className = 'si-badge';
+            badge.setAttribute('style', typeBadgeStyle[obj.type]||typeBadgeStyle.content);
+            badge.textContent = typeLabel[obj.type]||obj.type;
+            const info = document.createElement('div');
+            const titleEl = document.createElement('div');
+            titleEl.className = 'si-title';
+            titleEl.textContent = obj.title;
+            info.appendChild(titleEl);
+            if (pts.length) {
+              const ptEl = document.createElement('div');
+              ptEl.className = 'si-pts';
+              ptEl.textContent = pts.map(p=>'· '+p).join('\n');
+              ptEl.style.whiteSpace = 'pre-line';
+              info.appendChild(ptEl);
+            }
+            item.appendChild(badge);
+            item.appendChild(info);
             streamBody.appendChild(item);
             streamBody.scrollTop = streamBody.scrollHeight;
           }
-        } catch(e) { /* 解析失败跳过 */ }
+        } catch(e2) { /* skip */ }
         lastParsedCount = count;
       }
       searchFrom = end + 1;
@@ -446,39 +648,28 @@ async function generateFromTopic(topic, opts = {}) {
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-
     buffer += dec.decode(value, { stream: true });
     const parts = buffer.split('\n\n');
     buffer = parts.pop();
-
     for (const part of parts) {
       for (const line of part.split('\n')) {
         const trimmed = line.trim();
         if (!trimmed.startsWith('data:')) continue;
         const payload = trimmed.slice(5).trim();
         if (!payload) continue;
-
         let evt;
         try { evt = JSON.parse(payload); } catch { continue; }
-
         if (evt.error) throw new Error(evt.error);
-
-        if (evt.token) {
-          rawText += evt.token;
-          tryRenderNewSlides();
-        }
-
+        if (evt.token) { rawText += evt.token; tryRenderNewSlides(); }
         if (evt.slides) slides = evt.slides;
       }
     }
   }
 
-  // 完成
+  // 流结束：立即隐藏流式区（大纲区随后由 buildOutline 显示）
   streamDot.style.animation = 'none';
   streamDot.style.background = 'var(--ok)';
-  streamLabel.textContent = `✓ 已生成 ${slides ? slides.length : 0} 张幻灯片，正在渲染…`;
-
-  setTimeout(() => { streamBox.classList.remove('on'); }, 2000);
+  streamBox.classList.remove('on');
 
   if (!slides) throw new Error('未收到有效幻灯片数据');
   return slides;
@@ -487,20 +678,17 @@ async function generateFromTopic(topic, opts = {}) {
 // ── 渲染所有幻灯片 ─────────────────────────────────────
 function renderAll(sls,th){
   const pa=document.getElementById('pa');
-  document.getElementById('em').style.display='none';
   pa.querySelectorAll('.scard').forEach(e=>e.remove());
+  document.getElementById('em').style.display='none';
   const lb={cover:'封面',agenda:'目录',content:'内容',end:'结尾'};
-
   sls.forEach((sl,i)=>{
     const card=document.createElement('div');
     card.className='scard';
     card.style.animationDelay=(i*35)+'ms';
-
     const meta=document.createElement('div');
     meta.className='smeta';
-    meta.innerHTML=`<span>第${i+1}张</span><span class="pill pb">${lb[sl.type]||sl.type}</span><span style="color:var(--di)">${sl.title||''}</span>`;
+    meta.innerHTML=`<span>第${i+1}张</span><span class="pill pb">${lb[sl.type]||sl.type}</span><span style="color:var(--di)">${esc(sl.title||'')}</span>`;
     card.appendChild(meta);
-
     const wrap=document.createElement('div');
     wrap.className='sc-wrap';
     const inner=document.createElement('div');
@@ -510,55 +698,41 @@ function renderAll(sls,th){
     card.appendChild(wrap);
     pa.appendChild(card);
   });
-
-  // CSS 已经固定了 scale，不需要 JS 介入
 }
 
 // ── 构建单张幻灯片 HTML（960x540 坐标系）────────────────
 function buildSlideHTML(sl, th){
   const cc=th.cover, ct=th.content, ca=th.agenda, ce=th.end;
-
+  const t = esc(sl.title||'');
+  const sub = esc(sl.subtitle||'');
   if(sl.type==='cover'){
-    const subHTML = sl.subtitle ? '<div style="margin-top:20px;font-size:20px;color:#'+cc.subtitleColor+';line-height:1.55;max-height:90px;overflow:hidden;word-break:break-all;">'+sl.subtitle+'</div>' : '';
+    const subHTML = sub ? '<div style="margin-top:20px;font-size:20px;color:#'+cc.subtitleColor+';line-height:1.55;max-height:90px;overflow:hidden;word-break:break-all;">'+sub+'</div>' : '';
     return '<div style="width:960px;height:540px;background:#'+cc.bg+';display:flex;flex-direction:column;justify-content:center;padding:64px 72px;box-sizing:border-box;">'
       + '<div style="width:72px;height:5px;background:#'+cc.accentColor+';border-radius:3px;margin-bottom:30px;flex-shrink:0;"></div>'
-      + '<div style="font-size:40px;font-weight:700;color:#'+cc.titleColor+';line-height:1.3;max-height:160px;overflow:hidden;word-break:break-all;">'+sl.title+'</div>'
-      + subHTML
-      + '</div>';
+      + '<div style="font-size:40px;font-weight:700;color:#'+cc.titleColor+';line-height:1.3;max-height:160px;overflow:hidden;word-break:break-all;">'+t+'</div>'
+      + subHTML + '</div>';
   }
-
   if(sl.type==='end'){
-    const subHTML = sl.subtitle ? '<div style="font-size:20px;color:#'+ce.subtitleColor+';max-height:80px;overflow:hidden;word-break:break-all;">'+sl.subtitle+'</div>' : '';
+    const subHTML = sub ? '<div style="font-size:20px;color:#'+ce.subtitleColor+';max-height:80px;overflow:hidden;word-break:break-all;">'+sub+'</div>' : '';
     return '<div style="width:960px;height:540px;background:#'+ce.bg+';display:flex;flex-direction:column;justify-content:center;padding:64px 72px;box-sizing:border-box;">'
-      + '<div style="font-size:56px;font-weight:700;color:#'+ce.titleColor+';margin-bottom:22px;flex-shrink:0;">'+sl.title+'</div>'
-      + subHTML
-      + '</div>';
+      + '<div style="font-size:56px;font-weight:700;color:#'+ce.titleColor+';margin-bottom:22px;flex-shrink:0;">'+t+'</div>'
+      + subHTML + '</div>';
   }
-
   if(sl.type==='agenda'){
     const items=(sl.points||[]).slice(0,6);
     const rowH=Math.floor(400/Math.max(items.length,1));
-    return `<div style="width:960px;height:540px;background:#${ca.bg};
-      display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;">
-      <div style="height:88px;min-height:88px;background:#${ca.headerBg};
-        display:flex;align-items:center;padding:0 56px;">
-        <span style="font-size:30px;font-weight:700;color:#${ca.titleColor};">${sl.title}</span>
+    return `<div style="width:960px;height:540px;background:#${ca.bg};display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;">
+      <div style="height:88px;min-height:88px;background:#${ca.headerBg};display:flex;align-items:center;padding:0 56px;">
+        <span style="font-size:30px;font-weight:700;color:#${ca.titleColor};">${t}</span>
       </div>
-      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;
-        padding:14px 56px;gap:8px;overflow:hidden;">
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:14px 56px;gap:8px;overflow:hidden;">
         ${items.map((pt,i)=>`
           <div style="display:flex;align-items:center;gap:16px;height:${rowH}px;min-height:0;overflow:hidden;">
-            <div style="width:32px;height:32px;min-width:32px;background:#${ca.itemBorder};border-radius:5px;
-              display:flex;align-items:center;justify-content:center;
-              color:#fff;font-size:16px;font-weight:700;flex-shrink:0;">${i+1}</div>
-            <span style="font-size:20px;color:#${ca.itemText};
-              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pt}</span>
+            <div style="width:32px;height:32px;min-width:32px;background:#${ca.itemBorder};border-radius:5px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:700;flex-shrink:0;">${i+1}</div>
+            <span style="font-size:20px;color:#${ca.itemText};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(pt)}</span>
           </div>`).join('')}
-      </div>
-    </div>`;
+      </div></div>`;
   }
-
-  // content
   const pts=sl.points||[];
   const rowH=Math.floor(400/Math.max(pts.length,1));
   const mkBullet=()=>{
@@ -566,23 +740,17 @@ function buildSlideHTML(sl, th){
     if(ct.bulletShape==='line')   return `<div style="width:4px;height:22px;min-width:4px;background:#${ct.bulletColor};border-radius:2px;flex-shrink:0;"></div>`;
     return `<div style="width:14px;height:14px;min-width:14px;background:#${ct.bulletColor};border-radius:3px;flex-shrink:0;"></div>`;
   };
-  return `<div style="width:960px;height:540px;background:#${ct.bg};
-    display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;">
-    <div style="height:88px;min-height:88px;background:#${ct.headerBg};
-      display:flex;align-items:center;padding:0 56px;">
-      <span style="font-size:30px;font-weight:700;color:#${ct.titleColor};
-        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:848px;">${sl.title}</span>
+  return `<div style="width:960px;height:540px;background:#${ct.bg};display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;">
+    <div style="height:88px;min-height:88px;background:#${ct.headerBg};display:flex;align-items:center;padding:0 56px;">
+      <span style="font-size:30px;font-weight:700;color:#${ct.titleColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:848px;">${t}</span>
     </div>
-    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;
-      padding:14px 56px;gap:8px;overflow:hidden;">
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:14px 56px;gap:8px;overflow:hidden;">
       ${pts.map(pt=>`
         <div style="display:flex;align-items:center;gap:16px;height:${rowH}px;min-height:0;overflow:hidden;">
           ${mkBullet()}
-          <span style="font-size:20px;color:#${ct.pointColor};
-            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${pt}</span>
+          <span style="font-size:20px;color:#${ct.pointColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${esc(pt)}</span>
         </div>`).join('')}
-    </div>
-  </div>`;
+    </div></div>`;
 }
 
 // ── 下载 ───────────────────────────────────────────────
@@ -599,13 +767,37 @@ async function downloadPptx(){
 function clearAll(){
   document.getElementById('rawText').value='';
   document.getElementById('topicText').value='';
-  G_slides=null;
+  G_slides=null; G_outlineCollapsed=false;
+  // 重置生成按钮
+  const btn=document.getElementById('genBtn');
+  btn.disabled=false;
+  btn.textContent= G_activeTab==='topic' ? '✦ 根据主题生成大纲' : '✦ 解析生成大纲';
+  // 重置解析结果区
   document.getElementById('dlBtn').disabled=true;
-  document.getElementById('sb').classList.remove('on');
+  const sb=document.getElementById('sb');
+  sb.classList.remove('on');
+  document.getElementById('s1').textContent='—';
+  document.getElementById('s2').textContent='—';
+  document.getElementById('s3').textContent='—';
+  const s4=document.getElementById('s4');
+  s4.className='pill pb'; s4.style.background=''; s4.style.color=''; s4.textContent='就绪';
+  // 重置预览区
   document.getElementById('em').style.display='';
   document.getElementById('pa').querySelectorAll('.scard').forEach(e=>e.remove());
+  document.getElementById('outlineBox').classList.remove('on');
+  const ob=document.getElementById('outlineBody');
+  ob.innerHTML='';
+  ob.classList.remove('collapsed');
+  document.getElementById('outlineFoot').style.display='flex';
+  document.querySelector('.outline-toggle').textContent='收起';
+  // 重置流式区
   const sb2=document.getElementById('streamBox');
-  if(sb2){sb2.classList.remove('on');document.getElementById('streamBody').innerHTML='';}
+  if(sb2){
+    sb2.classList.remove('on');
+    document.getElementById('streamBody').innerHTML='';
+    document.getElementById('streamDot').style.animation='';
+    document.getElementById('streamDot').style.background='';
+  }
 }
 
 // ── 进度条 ─────────────────────────────────────────────
@@ -614,6 +806,7 @@ function setprog(n){
   b.style.display=n>0?'block':'none';
   b.style.width=n+'%';
 }
+
 </script>
 </body>
 </html>
