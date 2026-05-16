@@ -58,7 +58,7 @@ async function handleParse(request, env) {
     return corsResponse({ error: 'Invalid JSON body' }, 400);
   }
 
-  const { text, maxSlides = 12, maxPoints = 4 } = body;
+  const { text, maxSlides = 18, maxContentSlides = 15, maxPoints = 4 } = body;
   if (!text || typeof text !== 'string' || text.trim().length === 0) {
     return corsResponse({ error: 'Missing text field' }, 400);
   }
@@ -98,7 +98,8 @@ async function handleParse(request, env) {
 - 严格保留文章原有数据、案例、专有名词，不要编造
 
 【约束】
-- 总幻灯片数：${maxSlides}张以内
+- 内容页（type=content）数量：至少${maxContentSlides}页，充分覆盖文章所有要点；如果文章内容丰富，可以超过此数量，内容完整性优先，不要为了控制页数而合并不同议题或省略重要内容
+- 封面、目录、结尾不计入上述内容页数量
 - 每页要点数：${maxPoints}个以内
 - 要点文字中禁止使用英文双引号（"），用中文引号（「」）代替
 
@@ -123,8 +124,7 @@ ${trimmedText}`;
       },
       body: JSON.stringify({
         model: 'deepseek-chat',
-        max_tokens: 6000,
-        temperature: 0.4,
+        max_tokens: 10000,
         messages: [{ role: 'user', content: prompt }]
       })
     });
@@ -158,8 +158,14 @@ ${trimmedText}`;
     return corsResponse({ error: 'AI未返回有效幻灯片数据' }, 502);
   }
 
-  // 先截断到 maxSlides，再保证首尾完整（避免补完首尾后超出限制）
-  slides = slides.slice(0, maxSlides);
+  // 内容优先：不强制截断内容页，只设防刷硬顶（用户设定值的 2 倍）
+  const hardCap = maxContentSlides * 2;
+  let contentCount = 0;
+  slides = slides.filter(sl => {
+    if (sl.type !== 'content') return true;
+    contentCount++;
+    return contentCount <= hardCap;
+  });
   if (slides[0]?.type !== 'cover') {
     slides.unshift({ type: 'cover', title: '演示文稿', subtitle: '' });
   }
@@ -191,7 +197,7 @@ async function handleGenerate(request, env) {
     return corsResponse({ error: 'Invalid JSON body' }, 400);
   }
 
-  const { topic, maxSlides = 12, maxPoints = 4 } = body;
+  const { topic, maxSlides = 18, maxContentSlides = 15, maxPoints = 4 } = body;
   if (!topic || typeof topic !== 'string' || topic.trim().length === 0) {
     return corsResponse({ error: 'Missing topic field' }, 400);
   }
@@ -233,8 +239,9 @@ async function handleGenerate(request, env) {
 ✗ "加强团队协作" → ✓ "跨部门项目引入周同步机制后，决策延迟从平均9天降至2天"
 
 【分页与结构规则】
-- 总张数：${maxSlides}张以内（含封面结尾）
-- 每页要点：${maxPoints}个以内，建议3-4个
+- 内容页（type=content）数量：至少${maxContentSlides}页；如果主题内容丰富、逻辑链条需要更多页才能完整表达，可以超过此数量，内容完整优先于控制页数
+- 封面、目录、结尾不计入上述内容页数量
+- 每页要点：${maxPoints}个以内，建议3-4个；不要为了凑满要点数而拆散逻辑，也不要为了减少页数而把不同议题塞进同一页
 - 一个议题要点超过4个时必须拆成两页，第二页标题加（续）或换角度命名
 - 要点文字中禁止使用英文双引号，用中文引号（「」）代替
 - 章节逻辑递进：为什么（背景）→ 是什么（现状）→ 怎么做（方案）→ 怎么看（展望）
@@ -258,9 +265,7 @@ async function handleGenerate(request, env) {
       },
       body: JSON.stringify({
         model: 'deepseek-chat',
-        max_tokens: 6000,
-        temperature: 0.6,
-        stream: true,
+        max_tokens: 10000,
         messages: [{ role: 'user', content: prompt }]
       })
     });
@@ -380,8 +385,14 @@ async function handleGenerate(request, env) {
         return;
       }
 
-      // 先截断，再补首尾，保证结尾页不被截掉
-      slides = slides.slice(0, maxSlides);
+      // 内容优先：不强制截断内容页，只设防刷硬顶（用户设定值的 2 倍）
+      const hardCap = maxContentSlides * 2;
+      let contentCount = 0;
+      slides = slides.filter(sl => {
+        if (sl.type !== 'content') return true;
+        contentCount++;
+        return contentCount <= hardCap;
+      });
       if (slides[0]?.type !== 'cover') {
         slides.unshift({ type: 'cover', title: topic, subtitle: '' });
       }
